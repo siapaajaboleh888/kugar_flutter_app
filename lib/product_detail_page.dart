@@ -76,7 +76,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     };
     final harga = data['harga']?.toString() ?? '-';
     final deskripsi = data['deskripsi'] ?? '';
-    final imageUrl = data['image_url'] as String?;
+    final imageUrl = data['image_url'] ?? data['image'] ?? data['gambar'] as String?;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -87,7 +87,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: Image.network(
-                imageUrl,
+                imageUrl.startsWith('http') 
+                    ? imageUrl 
+                    : 'http://wisatalembung.test/storage/$imageUrl',
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => Container(
                   height: 180,
@@ -95,6 +97,20 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   alignment: Alignment.center,
                   child: const Icon(Icons.image_not_supported_outlined),
                 ),
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    height: 180,
+                    color: Colors.grey.shade100,
+                    alignment: Alignment.center,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Colors.grey.shade400,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           const SizedBox(height: 16),
