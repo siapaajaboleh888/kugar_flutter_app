@@ -1,8 +1,3 @@
-import 'package:json_annotation/json_annotation.dart';
-
-part 'category.g.dart';
-
-@JsonSerializable()
 class Category {
   final int id;
   final String name;
@@ -22,9 +17,33 @@ class Category {
     this.updatedAt,
   });
 
-  factory Category.fromJson(Map<String, dynamic> json) => _$CategoryFromJson(json);
+  factory Category.fromJson(Map<String, dynamic> json) {
+    return Category(
+      id: (json['id'] as int?) ?? 0,
+      name: json['name'] as String? ?? json['nama'] as String? ?? '',
+      description: json['description'] as String? ?? json['deskripsi'] as String? ?? '',
+      imageUrl: json['image_url'] as String? ?? json['image'] as String? ?? json['gambar'] as String?,
+      productCount: json['product_count'] as int? ?? json['productCount'] as int? ?? 0,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : null,
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'] as String)
+          : null,
+    );
+  }
 
-  Map<String, dynamic> toJson() => _$CategoryToJson(this);
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'image_url': imageUrl,
+      'product_count': productCount,
+      'created_at': createdAt?.toIso8601String(),
+      'updated_at': updatedAt?.toIso8601String(),
+    };
+  }
 
   Category copyWith({
     int? id,

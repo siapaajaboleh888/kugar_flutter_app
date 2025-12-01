@@ -13,6 +13,9 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
     final user = authState.user;
+    
+    // Debug print
+    print('DEBUG: HomePage build - AuthState: isAuthenticated=${authState.isAuthenticated}, userName=${user?.name}');
 
     return Scaffold(
       body: CustomScrollView(
@@ -72,7 +75,7 @@ class HomePage extends ConsumerWidget {
               ),
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert),
-                onSelected: (value) {
+                onSelected: (value) async {
                   switch (value) {
                     case 'profile':
                       // TODO: Navigate to profile
@@ -81,7 +84,29 @@ class HomePage extends ConsumerWidget {
                       // TODO: Navigate to settings
                       break;
                     case 'logout':
-                      ref.read(authProvider.notifier).logout();
+                      // Show loading indicator during logout
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) => const AlertDialog(
+                          content: Row(
+                            children: [
+                              CircularProgressIndicator(),
+                              SizedBox(width: 16),
+                              Text('Logging out...'),
+                            ],
+                          ),
+                        ),
+                      );
+                      
+                      // Perform logout
+                      await ref.read(authProvider.notifier).logout();
+                      
+                      // Close dialog and navigate to login
+                      if (context.mounted) {
+                        Navigator.of(context).pop(); // Close loading dialog
+                        context.go(AppRouter.login);
+                      }
                       break;
                   }
                 },
@@ -164,7 +189,7 @@ class HomePage extends ConsumerWidget {
                   title: 'Tracking',
                   icon: Icons.local_shipping_outlined,
                   color: Theme.of(context).colorScheme.secondaryContainer,
-                  onTap: () => context.go(AppRouter.tracking),
+                  onTap: () => context.go(AppRouter.orderTracking.replaceAll(':orderId', '0')),
                 ),
               ]),
             ),
@@ -220,7 +245,7 @@ class HomePage extends ConsumerWidget {
               context.go(AppRouter.cart);
               break;
             case 3:
-              // TODO: Navigate to orders
+              context.go(AppRouter.orders);
               break;
           }
         },

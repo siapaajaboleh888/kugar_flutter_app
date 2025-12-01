@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 
 import 'config.dart';
 
+const baseUrl = 'http://127.0.0.1:3001/api';
+
 class ApiService {
   String? _token;
 
@@ -12,7 +14,10 @@ class ApiService {
   }
 
   Map<String, String> _headers({bool withAuth = false}) {
-    final headers = {'Accept': 'application/json', 'Content-Type': 'application/json'};
+    final headers = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    };
     if (withAuth && _token != null) {
       headers['Authorization'] = 'Bearer $_token';
     }

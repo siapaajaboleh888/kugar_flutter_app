@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../data/services/api_service.dart';
 import '../../domain/entities/user.dart';
+import 'api_provider.dart';
 
 class AuthState {
   final User? user;
@@ -50,12 +52,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
         final response = await _apiService.getProfile();
         
         if (response['success'] == true && response['data'] != null) {
-          final user = User.fromJson(response['data'] as Map<String, dynamic>);
-          state = state.copyWith(
-            user: user,
-            isAuthenticated: true,
-            isLoading: false,
-          );
+          try {
+            final user = User.fromJson(response['data'] as Map<String, dynamic>);
+            state = state.copyWith(
+              user: user,
+              isAuthenticated: true,
+              isLoading: false,
+            );
+          } catch (e) {
+            print('DEBUG: Error parsing user data in checkAuthStatus: $e');
+            await _clearAuth();
+          }
         } else {
           await _clearAuth();
         }
@@ -75,25 +82,100 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
+      print('DEBUG: Starting login API call for email: $email');
       final response = await _apiService.login(email, password);
+      print('DEBUG: Login API response: $response');
       
-      if (response['success'] == true && response['data'] != null) {
-        final user = User.fromJson(response['data'] as Map<String, dynamic>);
+      // Handle different response formats
+      bool isSuccess = false;
+      Map<String, dynamic>? userData;
+      String? errorMessage;
+      
+      if (response['success'] == true) {
+        isSuccess = true;
+        final data = response['data'] as Map<String, dynamic>?;
+        if (data != null) {
+          userData = data['user'] as Map<String, dynamic>?;
+          print('DEBUG: Extracted user from data[\'user\']: $userData');
+        }
+      } else if (response['status'] == 'success') {
+        isSuccess = true;
+        userData = (response['data'] ?? response['user']) as Map<String, dynamic>?;
+      } else if (response['access_token'] != null || response['token'] != null) {
+        isSuccess = true;
+        userData = (response['user'] ?? response) as Map<String, dynamic>?;
+      } else if (response['user'] != null) {
+        // Handle case where user data is directly in response
+        isSuccess = true;
+        userData = response['user'] as Map<String, dynamic>?;
+        print('DEBUG: Found user data in response[\'user\']: $userData');
+      }
+      
+      if (!isSuccess) {
+        errorMessage = response['message']?.toString() ?? 
+                      response['error']?.toString() ?? 
+                      'Login failed';
+      }
+
+      if (isSuccess && userData != null) {
+        print('DEBUG: Login successful, user data: $userData');
+        print('DEBUG: User data type: ${userData.runtimeType}');
+        print('DEBUG: User name from data: ${userData['name']}');
+        try {
+          final user = User.fromJson(userData);
+          print('DEBUG: User object created: ${user.toString()}');
+          print('DEBUG: User.name property: "${user.name}"');
+          print('DEBUG: User.email property: "${user.email}"');
+          print('DEBUG: About to update state...');
+          state = state.copyWith(
+            user: user,
+            isAuthenticated: true,
+            isLoading: false,
+          );
+          print('DEBUG: State updated - isAuthenticated: ${state.isAuthenticated}, user.name: "${state.user?.name}"');
+        } catch (e) {
+          print('DEBUG: Error creating user from JSON: $e');
+          // Create minimal user if JSON parsing fails
+          final fallbackUser = User(
+            id: (userData['id'] as int?) ?? 0,
+            name: userData['name'] ?? email.split('@')[0],
+            email: email,
+            createdAt: DateTime.now(),
+          );
+          state = state.copyWith(
+            user: fallbackUser,
+            isAuthenticated: true,
+            isLoading: false,
+          );
+          print('DEBUG: Fallback user created: ${fallbackUser.email}, name: ${fallbackUser.name}');
+        }
+      } else if (isSuccess) {
+        // Success but no user data - create minimal user
+        print('DEBUG: Login successful but no user data, creating minimal user.');
+        final user = User(
+          id: (response['id'] as int?) ?? 0,
+          name: response['name'] ?? email.split('@')[0],
+          email: email,
+          createdAt: DateTime.now(),
+        );
         state = state.copyWith(
           user: user,
           isAuthenticated: true,
           isLoading: false,
         );
+        print('DEBUG: Minimal user created: ${user.email}');
       } else {
+        print('DEBUG: Login failed: $errorMessage');
         state = state.copyWith(
           isLoading: false,
-          error: response['message']?.toString() ?? 'Login failed',
+          error: errorMessage,
         );
       }
     } catch (e) {
+      print('DEBUG: Login exception: $e');
       state = state.copyWith(
         isLoading: false,
-        error: e.toString(),
+        error: 'Login error: ${e.toString()}',
       );
     }
   }
@@ -104,39 +186,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String phone,
     required String password,
   }) async {
-    print('DEBUG: AuthProvider.register called');
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      print('DEBUG: Calling API service register...');
-      
-      // TEMPORARY MOCK REGISTRATION FOR TESTING
-      if (email.isNotEmpty && password.length >= 6 && name.isNotEmpty) {
-        print('DEBUG: Using mock registration...');
-        
-        // Simulate API delay
-        await Future.delayed(const Duration(seconds: 2));
-        
-        // Create mock user with correct int ID
-        final mockUser = User(
-          id: DateTime.now().millisecondsSinceEpoch,
-          name: name,
-          email: email,
-          phone: phone,
-          createdAt: DateTime.now(),
-        );
-        
-        state = state.copyWith(
-          user: mockUser,
-          isAuthenticated: true,
-          isLoading: false,
-        );
-        
-        print('DEBUG: Mock registration successful');
-        return;
-      }
-      
-      // Original API call (commented for testing)
+      print('DEBUG: Starting registration API call...');
       final response = await _apiService.register(
         name: name,
         email: email,
@@ -144,23 +197,42 @@ class AuthNotifier extends StateNotifier<AuthState> {
         phone: phone,
       );
       
-      print('DEBUG: API response: $response');
+      print('DEBUG: Registration API response: $response');
 
+      // Handle different response formats
+      bool isSuccess = false;
+      String? errorMessage;
+      
       if (response['success'] == true) {
-        print('DEBUG: Registration successful, attempting login...');
+        isSuccess = true;
+      } else if (response['status'] == 'success') {
+        isSuccess = true;
+      } else if (response['message']?.toString().toLowerCase().contains('success') == true) {
+        isSuccess = true;
+      }
+
+      if (!isSuccess) {
+        errorMessage = response['message']?.toString() ?? 
+                      response['error']?.toString() ?? 
+                      'Registration failed';
+      }
+
+      if (isSuccess) {
+        print('DEBUG: Registration successful, attempting auto login...');
+        // Auto login after successful registration
         await login(email, password);
       } else {
-        print('DEBUG: Registration failed: ${response['message']}');
+        print('DEBUG: Registration failed: $errorMessage');
         state = state.copyWith(
           isLoading: false,
-          error: response['message']?.toString() ?? 'Registration failed',
+          error: errorMessage,
         );
       }
     } catch (e) {
       print('DEBUG: Registration exception: $e');
       state = state.copyWith(
         isLoading: false,
-        error: e.toString(),
+        error: 'Registration error: ${e.toString()}',
       );
     }
   }
@@ -172,8 +244,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await _apiService.logout();
     } catch (e) {
       // Continue with logout even if API call fails
+      print('DEBUG: Logout API failed: $e');
     } finally {
       await _clearAuth();
+      print('DEBUG: Logout completed, state reset');
     }
   }
 
@@ -191,8 +265,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
 }
 
 // Providers
-final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
-
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   final apiService = ref.watch(apiServiceProvider);
   return AuthNotifier(apiService);

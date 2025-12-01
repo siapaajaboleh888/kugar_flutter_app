@@ -110,11 +110,7 @@ class AppRouter {
       GoRoute(
         path: qrScanner,
         name: 'qrScanner',
-        builder: (context, state) => const Scaffold(
-          body: Center(
-            child: Text('QR Scanner - Coming Soon'),
-          ),
-        ),
+        builder: (context, state) => const QRScannerPage(),
       ),
       GoRoute(
         path: virtualTour,

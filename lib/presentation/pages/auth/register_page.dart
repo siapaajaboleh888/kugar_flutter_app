@@ -291,15 +291,26 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         Checkbox(
                           value: _agreeToTerms,
                           onChanged: (value) {
+                            print('DEBUG: Checkbox changed to: $value');
                             setState(() {
                               _agreeToTerms = value ?? false;
+                              print('DEBUG: _agreeToTerms updated to: $_agreeToTerms');
                             });
                           },
                         ),
                         Expanded(
-                          child: Text(
-                            'I agree to the Terms of Service and Privacy Policy',
-                            style: Theme.of(context).textTheme.bodySmall,
+                          child: GestureDetector(
+                            onTap: () {
+                              print('DEBUG: Terms text tapped');
+                              setState(() {
+                                _agreeToTerms = !_agreeToTerms;
+                                print('DEBUG: _agreeToTerms toggled to: $_agreeToTerms');
+                              });
+                            },
+                            child: Text(
+                              'I agree to the Terms of Service and Privacy Policy',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
                           ),
                         ),
                       ],

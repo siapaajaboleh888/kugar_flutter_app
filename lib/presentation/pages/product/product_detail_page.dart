@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/api_provider.dart';
 import '../../../domain/entities/product.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/shimmer_widget.dart';
@@ -39,9 +40,15 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
     });
 
     try {
-      final product = await ref.read(productDetailProvider(widget.productId).future);
+      final apiService = ref.read(apiServiceProvider);
+      final response = await apiService.getProductDetail(widget.productId);
       
-      if (product != null) {
+      print('DEBUG: Product detail response: $response');
+      
+      if (response['success'] == true && response['data'] != null) {
+        final productData = response['data'] as Map<String, dynamic>;
+        final product = Product.fromJson(productData);
+        
         setState(() {
           _product = {
             'id': product.id,
@@ -55,16 +62,19 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
             'image': product.imageUrl,
             'gambar': product.imageUrl,
             'rating': product.rating,
+            'category': product.category,
+            'is_available': product.isAvailable,
           };
           _isLoading = false;
         });
       } else {
         setState(() {
-          _error = 'Product not found';
+          _error = response['message'] ?? 'Product not found';
           _isLoading = false;
         });
       }
     } catch (e) {
+      print('DEBUG: Error loading product detail: $e');
       setState(() {
         _error = 'Error loading product: $e';
         _isLoading = false;
@@ -72,11 +82,45 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
     }
   }
 
-  void _addToCart() {
-    // TODO: Implement add to cart functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Added to cart!')),
-    );
+  void _addToCart() async {
+    if (_product == null) return;
+    
+    try {
+      final authState = ref.read(authProvider);
+      if (!authState.isAuthenticated) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please login to add items to cart')),
+        );
+        return;
+      }
+
+      final success = await ref.read(cartProvider.notifier).addToCart(
+        productId: _product!['id'],
+        productName: _product!['name'] ?? _product!['nama'],
+        price: (_product!['price'] ?? _product!['harga']).toDouble(),
+        quantity: _quantity,
+        imageUrl: _product!['image_url'] ?? _product!['image'] ?? _product!['gambar'],
+      );
+      
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Added to cart!')),
+          );
+        } else {
+          final cartState = ref.read(cartProvider);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(cartState.error ?? 'Failed to add to cart')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error adding to cart: $e')),
+        );
+      }
+    }
   }
 
   @override

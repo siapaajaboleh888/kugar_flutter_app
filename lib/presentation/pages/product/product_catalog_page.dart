@@ -5,8 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../providers/product_provider.dart';
 import '../../../core/router/app_router.dart';
-import '../../../shared/widgets/custom_button.dart';
-import '../../../shared/widgets/shimmer_widget.dart';
+import '../../../domain/entities/product.dart';
 
 class ProductCatalogPage extends ConsumerStatefulWidget {
   const ProductCatalogPage({super.key});
@@ -16,90 +15,24 @@ class ProductCatalogPage extends ConsumerStatefulWidget {
 }
 
 class _ProductCatalogPageState extends ConsumerState<ProductCatalogPage> {
-  final ScrollController _scrollController = ScrollController();
-  int _currentPage = 1;
-  bool _isLoading = false;
-  List<dynamic> _products = [];
-  List<dynamic> _categories = [];
-  String? _selectedCategory;
-  final TextEditingController _searchController = TextEditingController();
-
   @override
   void initState() {
     super.initState();
-    _loadProducts();
-    _loadCategories();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent) {
-      _loadMoreProducts();
-    }
-  }
-
-  Future<void> _loadProducts({bool refresh = false}) async {
-    if (refresh) {
-      setState(() {
-        _currentPage = 1;
-        _products.clear();
-      });
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      await ref.read(productProvider.notifier).loadProducts(refresh: refresh);
-      final productState = ref.read(productProvider);
-      setState(() {
-        if (refresh) {
-          _products = productState.products;
-        } else {
-          _products.addAll(productState.products);
-        }
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _loadMoreProducts() async {
-    if (_isLoading) return;
-    _currentPage++;
-    await _loadProducts();
-  }
-
-  Future<void> _loadCategories() async {
-    try {
-      await ref.read(productProvider.notifier).loadCategories();
-      final productState = ref.read(productProvider);
-      setState(() {
-        _categories = productState.categories;
-      });
-    } catch (e) {
-      // Handle error silently for categories
-    }
-  }
-
-  void _searchProducts(String query) {
-    // TODO: Implement search functionality
+    // Load products and categories when page opens
+    Future.microtask(() {
+      ref.read(productProvider.notifier).loadProducts();
+      ref.read(productProvider.notifier).loadCategories();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final productState = ref.watch(productProvider);
+    final products = productState.products;
+    final categories = productState.categories;
+    final isLoading = productState.isLoading;
+    final error = productState.error;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Products'),
@@ -107,25 +40,54 @@ class _ProductCatalogPageState extends ConsumerState<ProductCatalogPage> {
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () {
-              showSearch(
-                context: context,
-                delegate: ProductSearchDelegate(),
-              );
+              showSearch(context: context, delegate: ProductSearchDelegate());
             },
           ),
           IconButton(
             icon: const Icon(Icons.filter_list),
-            onPressed: _showFilterDialog,
+            onPressed: () => _showFilterDialog(context),
           ),
         ],
       ),
       body: Column(
         children: [
-          _buildCategories(),
+          _buildCategories(context, categories),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () => _loadProducts(refresh: true),
-              child: _buildProductGrid(),
+              onRefresh: () async {
+                await ref
+                    .read(productProvider.notifier)
+                    .loadProducts(refresh: true);
+              },
+              child: isLoading && products.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : error != null && products.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            size: 64,
+                            color: Colors.red,
+                          ),
+                          const SizedBox(height: 16),
+                          Text('Error: $error'),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () {
+                              ref
+                                  .read(productProvider.notifier)
+                                  .loadProducts(refresh: true);
+                            },
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : products.isEmpty
+                  ? const Center(child: Text('No products found'))
+                  : _buildProductGrid(context, products),
             ),
           ),
         ],
@@ -133,33 +95,38 @@ class _ProductCatalogPageState extends ConsumerState<ProductCatalogPage> {
     );
   }
 
-  Widget _buildCategories() {
+  Widget _buildCategories(BuildContext context, List<dynamic> categories) {
+    if (categories.isEmpty) {
+      return const SizedBox.shrink();
+    }
     return Container(
       height: 60,
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _categories.length + 1,
+        itemCount: categories.length + 1,
         itemBuilder: (context, index) {
           if (index == 0) {
             return _CategoryChip(
               label: 'All',
-              isSelected: _selectedCategory == null,
-              onTap: () {
-                setState(() => _selectedCategory = null);
-                _loadProducts(refresh: true);
+              isSelected: false,
+              onTap: () async {
+                ref.read(productProvider.notifier).loadProducts(refresh: true);
               },
             );
           }
-          
-          final category = _categories[index - 1];
+          final category = categories[index - 1];
           return _CategoryChip(
-            label: category['name'] ?? 'Category',
-            isSelected: _selectedCategory == category['id'].toString(),
-            onTap: () {
-              setState(() => _selectedCategory = category['id'].toString());
-              _loadProducts(refresh: true);
+            label: category.name ?? 'Category',
+            isSelected: false,
+            onTap: () async {
+              ref
+                  .read(productProvider.notifier)
+                  .loadProducts(
+                    refresh: true,
+                    category: category.id.toString(),
+                  );
             },
           );
         },
@@ -167,22 +134,8 @@ class _ProductCatalogPageState extends ConsumerState<ProductCatalogPage> {
     );
   }
 
-  Widget _buildProductGrid() {
-    if (_products.isEmpty && !_isLoading) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.shopping_bag_outlined, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('No products found', style: TextStyle(color: Colors.grey)),
-          ],
-        ),
-      );
-    }
-
+  Widget _buildProductGrid(BuildContext context, List<dynamic> products) {
     return GridView.builder(
-      controller: _scrollController,
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -190,29 +143,36 @@ class _ProductCatalogPageState extends ConsumerState<ProductCatalogPage> {
         mainAxisSpacing: 16,
         childAspectRatio: 0.75,
       ),
-      itemCount: _products.length + (_isLoading ? 1 : 0),
+      itemCount: products.length,
       itemBuilder: (context, index) {
-        if (index == _products.length && _isLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final product = _products[index] as Map<String, dynamic>;
-        return _ProductCard(product: product);
+        final product = products[index] as Product;
+        return _ProductCard(
+          product: {
+            'id': product.id,
+            'nama': product.name,
+            'name': product.name,
+            'harga': product.price,
+            'price': product.price,
+            'deskripsi': product.description,
+            'description': product.description,
+            'image_url': product.imageUrl,
+            'image': product.imageUrl,
+            'gambar': product.imageUrl,
+            'rating': product.rating,
+          },
+        );
       },
     );
   }
 
-  void _showFilterDialog() {
+  void _showFilterDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Filter Products'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
-            // TODO: Add filter options
-            const Text('Filter options coming soon...'),
-          ],
+          children: [const Text('Filter options coming soon...')],
         ),
         actions: [
           TextButton(
@@ -238,7 +198,16 @@ class _ProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = product['nama'] ?? product['name'] ?? 'Product';
     final price = product['harga']?.toString() ?? '0';
-    final imageUrl = product['image_url'] ?? product['image'] ?? product['gambar'];
+    final imageUrl =
+        product['image_url'] ?? product['image'] ?? product['gambar'];
+
+    final finalImageUrl = imageUrl != null && !imageUrl.startsWith('http')
+        ? 'https://kugar.e-pinggirpapas-sumenep.com/storage/$imageUrl'
+        : imageUrl;
+
+    print(
+      'DEBUG _ProductCard: product id=${product['id']}, raw imageUrl=$imageUrl, final url=$finalImageUrl',
+    );
     final rating = product['rating']?.toDouble();
 
     return Card(
@@ -247,7 +216,7 @@ class _ProductCard extends StatelessWidget {
       child: InkWell(
         onTap: () {
           final productId = product['id'] as int;
-          context.go('${AppRouter.productDetail}');
+          context.go('${AppRouter.productDetail}/$productId');
         },
         borderRadius: BorderRadius.circular(16),
         child: Column(
@@ -258,20 +227,21 @@ class _ProductCard extends StatelessWidget {
               child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
                   color: Colors.grey.shade100,
                 ),
                 child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  child: imageUrl != null
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
+                  child: finalImageUrl != null
                       ? CachedNetworkImage(
-                          imageUrl: imageUrl.startsWith('http')
-                              ? imageUrl
-                              : 'https://kugar.e-pinggirpapas-sumenep.com/storage/$imageUrl',
+                          imageUrl: finalImageUrl,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) => const Center(
-                            child: CircularProgressIndicator(),
-                          ),
+                          placeholder: (context, url) =>
+                              const Center(child: CircularProgressIndicator()),
                           errorWidget: (context, url, error) => Container(
                             color: Colors.grey.shade200,
                             child: const Icon(
@@ -310,11 +280,7 @@ class _ProductCard extends StatelessWidget {
                     if (rating != null) ...[
                       Row(
                         children: [
-                          Icon(
-                            Icons.star,
-                            size: 16,
-                            color: Colors.amber,
-                          ),
+                          Icon(Icons.star, size: 16, color: Colors.amber),
                           const SizedBox(width: 4),
                           Text(
                             rating.toStringAsFixed(1),
@@ -372,10 +338,7 @@ class ProductSearchDelegate extends SearchDelegate<String> {
   @override
   List<Widget> buildActions(BuildContext context) {
     return [
-      IconButton(
-        icon: const Icon(Icons.clear),
-        onPressed: () => query = '',
-      ),
+      IconButton(icon: const Icon(Icons.clear), onPressed: () => query = ''),
     ];
   }
 

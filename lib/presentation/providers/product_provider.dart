@@ -2,9 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/services/api_service.dart';
 import '../../../domain/entities/product.dart';
 import '../../../domain/entities/category.dart';
-
-// Provider for API service
-final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
+import 'api_provider.dart';
 
 // Product state
 class ProductState {
@@ -68,6 +66,8 @@ class ProductProvider extends StateNotifier<ProductState> {
     String? sortBy,
     String? sortOrder,
   }) async {
+    print('DEBUG: loadProducts called - refresh: $refresh, category: $category, search: $search');
+    
     if (refresh) {
       state = state.copyWith(
         currentPage: 1,
@@ -82,6 +82,7 @@ class ProductProvider extends StateNotifier<ProductState> {
     state = state.copyWith(isLoading: !refresh, isLoadingMore: refresh, error: null);
 
     try {
+      print('DEBUG: Calling API getProducts...');
       final response = await _apiService.getProducts(
         page: state.currentPage,
         category: category,
@@ -89,21 +90,58 @@ class ProductProvider extends StateNotifier<ProductState> {
         sortBy: sortBy,
         sortOrder: sortOrder,
       );
+      
+      print('DEBUG: API response: $response');
 
       if (response['success'] == true && response['data'] != null) {
         final data = response['data'] as Map<String, dynamic>;
-        final productsData = data['data'] as List<dynamic>;
-        final newProducts = productsData.map((p) => Product.fromJson(p as Map<String, dynamic>)).toList();
+        final productsData = data['data'] as List<dynamic>?;
+        
+        print('DEBUG: Products data length: ${productsData?.length}');
+        
+        if (productsData != null) {
+          final newProducts = productsData.map((p) {
+            try {
+              return Product.fromJson(p as Map<String, dynamic>);
+            } catch (e) {
+              print('DEBUG: Error parsing product: $e');
+              // Create fallback product
+              return Product(
+                id: (p['id'] as int?) ?? 0,
+                name: p['name'] ?? p['nama'] ?? 'Unknown Product',
+                description: p['description'] ?? p['deskripsi'] ?? '',
+                price: (p['price'] ?? p['harga'] ?? 0).toDouble(),
+              );
+            }
+          }).toList();
 
+          print('DEBUG: Parsed products count: ${newProducts.length}');
+
+          state = state.copyWith(
+            products: refresh ? newProducts : [...state.products, ...newProducts],
+            isLoading: false,
+            isLoadingMore: false,
+            currentPage: state.currentPage + 1,
+            hasMore: newProducts.length >= 10,
+          );
+        } else {
+          print('DEBUG: No products data found in response');
+          state = state.copyWith(
+            isLoading: false,
+            isLoadingMore: false,
+            error: 'No products data found',
+          );
+        }
+      } else {
+        print('DEBUG: API response not successful: ${response['message']}');
         state = state.copyWith(
-          products: refresh ? newProducts : [...state.products, ...newProducts],
           isLoading: false,
           isLoadingMore: false,
-          currentPage: state.currentPage + 1,
-          hasMore: newProducts.length >= 10,
+          error: response['message'] ?? 'Failed to load products',
         );
       }
     } catch (e) {
+      print('DEBUG: Exception in loadProducts: $e');
       state = state.copyWith(
         isLoading: false,
         isLoadingMore: false,
@@ -129,15 +167,39 @@ class ProductProvider extends StateNotifier<ProductState> {
 
   Future<void> loadCategories() async {
     try {
+      print('DEBUG: Calling API getCategories...');
       final response = await _apiService.getCategories();
+      print('DEBUG: Categories API response: $response');
 
       if (response['success'] == true && response['data'] != null) {
         final categoriesData = response['data'] as List<dynamic>;
-        final categories = categoriesData.map((c) => Category.fromJson(c as Map<String, dynamic>)).toList();
+        print('DEBUG: Categories data length: ${categoriesData.length}');
+        
+        final categories = categoriesData.map((c) {
+          try {
+            final category = Category.fromJson(c as Map<String, dynamic>);
+            print('DEBUG: Parsed category: ${category.name}');
+            return category;
+          } catch (e) {
+            print('DEBUG: Error parsing category: $e, data: $c');
+            // Create fallback category
+            return Category(
+              id: (c['id'] as int?) ?? 0,
+              name: c['name'] ?? c['nama'] ?? 'Unknown Category',
+              description: c['description'] ?? c['deskripsi'] ?? '',
+              imageUrl: c['image_url'] ?? c['image'] ?? c['gambar'] as String?,
+              productCount: c['product_count'] as int? ?? 0,
+            );
+          }
+        }).toList();
 
+        print('DEBUG: Final categories count: ${categories.length}');
         state = state.copyWith(categories: categories);
+      } else {
+        print('DEBUG: Categories API response not successful: ${response['message']}');
       }
     } catch (e) {
+      print('DEBUG: Exception in loadCategories: $e');
       // Handle error silently for categories
     }
   }

@@ -1,9 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/services/api_service.dart';
 import '../../../domain/entities/cart_item.dart';
-
-// Provider for API service
-final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
+import 'api_provider.dart';
 
 // Cart state
 class CartState {

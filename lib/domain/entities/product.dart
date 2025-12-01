@@ -26,17 +26,61 @@ class Product {
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
+    // Handle price that can be string or number
+    double parsedPrice = 0.0;
+    final hargaValue = json['harga'] ?? json['price'];
+    if (hargaValue != null) {
+      if (hargaValue is String) {
+        parsedPrice = double.tryParse(hargaValue) ?? 0.0;
+      } else if (hargaValue is num) {
+        parsedPrice = hargaValue.toDouble();
+      }
+    }
+
+    String? imageUrl;
+
+    // Try direct string fields first
+    imageUrl =
+        json['image_url'] ??
+        json['foto'] ??
+        json['image'] ??
+        json['gambar'] as String?;
+
+    // If not found, check if images is an array
+    if (imageUrl == null &&
+        json['images'] is List &&
+        (json['images'] as List).isNotEmpty) {
+      final firstImage = (json['images'] as List).first;
+      if (firstImage is String) {
+        imageUrl = firstImage;
+      } else if (firstImage is Map && firstImage['url'] != null) {
+        imageUrl = firstImage['url'] as String?;
+      }
+    }
+
+    // Check nested image object
+    if (imageUrl == null && json['image'] is Map) {
+      final imageObj = json['image'] as Map;
+      imageUrl =
+          imageObj['url'] ?? imageObj['path'] ?? imageObj['src'] as String?;
+    }
+
+    print(
+      'DEBUG Product.fromJson: id=${json['id']}, name=${json['nama'] ?? json['name']}, imageUrl=$imageUrl',
+    );
+    print('DEBUG Product.fromJson: full json keys: ${json.keys.toList()}');
+
     return Product(
-      id: json['id'] as int,
+      id: (json['id'] as int?) ?? 0,
       name: json['nama'] ?? json['name'] ?? '',
-      description: json['deskripsi'] ?? '',
-      price: (json['harga'] ?? 0).toDouble(),
-      imageUrl: json['image_url'] ?? json['image'] ?? json['gambar'] as String?,
+      description: json['deskripsi'] ?? json['description'] ?? '',
+      price: parsedPrice,
+      imageUrl: imageUrl,
       category: json['kategori'] as String?,
       isAvailable: json['is_available'] ?? true,
       rating: json['rating']?.toDouble(),
       reviewCount: json['review_count'] as int?,
-      createdAt: json['created_at'] != null 
+      createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : null,
       updatedAt: json['updated_at'] != null

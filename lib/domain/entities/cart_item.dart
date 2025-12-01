@@ -19,11 +19,11 @@ class CartItem {
 
   factory CartItem.fromJson(Map<String, dynamic> json) {
     return CartItem(
-      id: json['id'] as int,
-      productId: json['product_id'] as int,
+      id: (json['id'] as int?) ?? 0,
+      productId: (json['product_id'] as int?) ?? 0,
       productName: json['product_name'] ?? json['name'] ?? '',
       price: (json['price'] ?? 0).toDouble(),
-      quantity: json['quantity'] as int,
+      quantity: (json['quantity'] as int?) ?? 1,
       imageUrl: json['image_url'] as String?,
       addedAt: json['added_at'] != null
           ? DateTime.parse(json['added_at'] as String)

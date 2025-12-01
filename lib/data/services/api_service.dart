@@ -11,30 +11,44 @@ class ApiService {
   String? _token;
 
   ApiService() {
-    _dio = Dio(BaseOptions(
-      baseUrl: AppConstants.apiBaseUrl,
-      connectTimeout: const Duration(seconds: AppConstants.apiTimeout),
-      receiveTimeout: const Duration(seconds: AppConstants.apiTimeout),
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-    ));
+    _dio = Dio(
+      BaseOptions(
+        baseUrl: AppConstants.apiBaseUrl,
+        connectTimeout: const Duration(seconds: AppConstants.apiTimeout),
+        receiveTimeout: const Duration(seconds: AppConstants.apiTimeout),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          // Add CORS headers for Flutter Web
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        },
+        validateStatus: (status) {
+          // Accept all status codes to handle errors manually
+          return status != null && status < 500;
+        },
+      ),
+    );
 
-    _dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) async {
-        if (_token != null) {
-          options.headers['Authorization'] = 'Bearer $_token';
-        }
-        handler.next(options);
-      },
-      onError: (error, handler) async {
-        if (error.response?.statusCode == 401) {
-          await _clearToken();
-        }
-        handler.next(error);
-      },
-    ));
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          print('DEBUG: Making request to ${options.baseUrl}${options.path}');
+          if (_token != null) {
+            options.headers['Authorization'] = 'Bearer $_token';
+          }
+          handler.next(options);
+        },
+        onError: (error, handler) async {
+          print('DEBUG: Interceptor error - ${error.message}');
+          if (error.response?.statusCode == 401) {
+            await _clearToken();
+          }
+          handler.next(error);
+        },
+      ),
+    );
   }
 
   Future<void> _loadToken() async {
@@ -58,10 +72,14 @@ class ApiService {
   // Authentication Endpoints
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
+      print('DEBUG LOGIN: Attempting login with email: $email');
       final response = await _dio.post(
         '/auth/login',
         data: {'email': email, 'password': password},
       );
+
+      print('DEBUG LOGIN: Response status: ${response.statusCode}');
+      print('DEBUG LOGIN: Response data: ${response.data}');
 
       final data = response.data as Map<String, dynamic>;
       if (response.statusCode == 200 && data['data']?['token'] != null) {
@@ -69,6 +87,10 @@ class ApiService {
       }
       return data;
     } on DioException catch (e) {
+      print(
+        'DEBUG LOGIN: DioException - Status: ${e.response?.statusCode}, Message: ${e.message}',
+      );
+      print('DEBUG LOGIN: Response data: ${e.response?.data}');
       throw _handleDioError(e);
     }
   }
@@ -80,12 +102,15 @@ class ApiService {
     String? phone,
   }) async {
     try {
-      final response = await _dio.post('/auth/register', data: {
-        'name': name,
-        'email': email,
-        'password': password,
-        if (phone != null) 'phone': phone,
-      });
+      final response = await _dio.post(
+        '/auth/register',
+        data: {
+          'name': name,
+          'email': email,
+          'password': password,
+          if (phone != null) 'phone': phone,
+        },
+      );
 
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
@@ -113,7 +138,9 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> userData) async {
+  Future<Map<String, dynamic>> updateProfile(
+    Map<String, dynamic> userData,
+  ) async {
     try {
       final response = await _dio.put('/users/profile', data: userData);
       return response.data as Map<String, dynamic>;
@@ -141,16 +168,24 @@ class ApiService {
         if (sortOrder != null) 'sort_order': sortOrder,
       };
 
-      final response = await _dio.get('/products', queryParameters: queryParams);
+      print('DEBUG API: Requesting /produk with params: $queryParams');
+      print('DEBUG API: Full URL: ${_dio.options.baseUrl}/produk');
+      final response = await _dio.get('/produk', queryParameters: queryParams);
+      print('DEBUG API: Response status: ${response.statusCode}');
+      print('DEBUG API: Response data: ${response.data}');
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
+      print(
+        'DEBUG API: DioException - Status: ${e.response?.statusCode}, Message: ${e.message}',
+      );
+      print('DEBUG API: Response data: ${e.response?.data}');
       throw _handleDioError(e);
     }
   }
 
   Future<Map<String, dynamic>> getProductDetail(int id) async {
     try {
-      final response = await _dio.get('/products/$id');
+      final response = await _dio.get('/produk/$id');
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       throw _handleDioError(e);
@@ -159,10 +194,13 @@ class ApiService {
 
   Future<Map<String, dynamic>> getCategories() async {
     try {
-      final response = await _dio.get('/products/categories');
+      // Try the API endpoint, return empty if not found
+      final response = await _dio.get('/produk/categories');
       return response.data as Map<String, dynamic>;
-    } on DioException catch (e) {
-      throw _handleDioError(e);
+    } catch (e) {
+      // If endpoint doesn't exist, return empty categories list
+      print('DEBUG: Categories endpoint not available, returning empty list');
+      return {'data': []};
     }
   }
 
@@ -176,7 +214,9 @@ class ApiService {
   }
 
   // Order Endpoints
-  Future<Map<String, dynamic>> createOrder(Map<String, dynamic> orderData) async {
+  Future<Map<String, dynamic>> createOrder(
+    Map<String, dynamic> orderData,
+  ) async {
     try {
       final response = await _dio.post('/orders', data: orderData);
       return response.data as Map<String, dynamic>;
@@ -185,10 +225,7 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> getOrders({
-    int page = 1,
-    String? status,
-  }) async {
+  Future<Map<String, dynamic>> getOrders({int page = 1, String? status}) async {
     try {
       final queryParams = <String, dynamic>{
         'page': page,
@@ -211,11 +248,15 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> updateOrderStatus(String orderId, String status) async {
+  Future<Map<String, dynamic>> updateOrderStatus(
+    String orderId,
+    String status,
+  ) async {
     try {
-      final response = await _dio.put('/orders/$orderId/status', data: {
-        'status': status,
-      });
+      final response = await _dio.put(
+        '/orders/$orderId/status',
+        data: {'status': status},
+      );
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       throw _handleDioError(e);
@@ -250,7 +291,10 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> updateCartItem(int itemId, Map<String, dynamic> data) async {
+  Future<Map<String, dynamic>> updateCartItem(
+    int itemId,
+    Map<String, dynamic> data,
+  ) async {
     try {
       final response = await _dio.put('/orders/cart/$itemId', data: data);
       return response.data as Map<String, dynamic>;
@@ -335,18 +379,24 @@ class ApiService {
   }
 
   // Review Endpoints
-  Future<Map<String, dynamic>> getProductReviews(int productId, {int page = 1}) async {
+  Future<Map<String, dynamic>> getProductReviews(
+    int productId, {
+    int page = 1,
+  }) async {
     try {
-      final response = await _dio.get('/products/$productId/reviews', queryParameters: {
-        'page': page,
-      });
+      final response = await _dio.get(
+        '/products/$productId/reviews',
+        queryParameters: {'page': page},
+      );
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       throw _handleDioError(e);
     }
   }
 
-  Future<Map<String, dynamic>> createReview(Map<String, dynamic> reviewData) async {
+  Future<Map<String, dynamic>> createReview(
+    Map<String, dynamic> reviewData,
+  ) async {
     try {
       final response = await _dio.post('/reviews', data: reviewData);
       return response.data as Map<String, dynamic>;
@@ -355,7 +405,10 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> updateReview(int reviewId, Map<String, dynamic> reviewData) async {
+  Future<Map<String, dynamic>> updateReview(
+    int reviewId,
+    Map<String, dynamic> reviewData,
+  ) async {
     try {
       final response = await _dio.put('/reviews/$reviewId', data: reviewData);
       return response.data as Map<String, dynamic>;
@@ -392,7 +445,9 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> contactSupport(Map<String, dynamic> messageData) async {
+  Future<Map<String, dynamic>> contactSupport(
+    Map<String, dynamic> messageData,
+  ) async {
     try {
       final response = await _dio.post('/support/contact', data: messageData);
       return response.data as Map<String, dynamic>;
@@ -410,11 +465,11 @@ class ApiService {
       case DioExceptionType.badResponse:
         final statusCode = error.response?.statusCode;
         final data = error.response?.data as Map<String, dynamic>?;
-        
+
         if (data != null && data['message'] != null) {
           return data['message'].toString();
         }
-        
+
         switch (statusCode) {
           case 400:
             return 'Bad request. Please check your input.';

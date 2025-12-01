@@ -1,0 +1,14 @@
+{
+  "name": "kugar-proxy",
+  "version": "1.0.0",
+  "description": "CORS proxy for Flutter Web development",
+  "main": "proxy.js",
+  "scripts": {
+    "start": "node proxy.js",
+    "dev": "node proxy.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  }
+}

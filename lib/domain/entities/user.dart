@@ -22,10 +22,14 @@ class User {
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
+    print('DEBUG: User.fromJson called with: $json');
+    final name = (json['name'] as String?) ?? (json['nama'] as String?) ?? '';
+    print('DEBUG: Extracted name: "$name"');
+    
     return User(
-      id: json['id'] as int,
-      name: json['name'] ?? json['nama'] ?? '',
-      email: json['email'] as String,
+      id: (json['id'] as int?) ?? 0,
+      name: name,
+      email: (json['email'] as String?) ?? '',
       phone: json['phone'] as String?,
       address: json['address'] as String?,
       avatar: json['avatar'] as String?,
