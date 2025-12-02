@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 
 import 'config.dart';
 
-const baseUrl = 'http://127.0.0.1:3001/api';
+const baseUrl = 'http://wisatalembung.test/api';
 
 class ApiService {
   String? _token;

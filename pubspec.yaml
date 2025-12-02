@@ -73,6 +73,9 @@ dependencies:
   # WebView
   webview_flutter: ^4.8.0
   
+  # Web support
+  web: ^0.5.1
+  
   # Utilities
   intl: ^0.19.0
   uuid: ^4.4.0

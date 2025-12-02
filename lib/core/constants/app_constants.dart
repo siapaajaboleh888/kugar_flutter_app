@@ -7,7 +7,7 @@ class AppConstants {
   // Use proxy for web development to avoid CORS issues
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:3001/api',
+    defaultValue: 'http://wisatalembung.test/api',
   );
   static const int apiTimeout = 30;
 

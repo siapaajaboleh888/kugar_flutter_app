@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:webview_flutter/webview_flutter.dart';
 
 class VirtualTourPage extends ConsumerStatefulWidget {
@@ -12,19 +13,23 @@ class VirtualTourPage extends ConsumerStatefulWidget {
 }
 
 class _VirtualTourPageState extends ConsumerState<VirtualTourPage> {
-  late WebViewController _controller;
   bool _isLoading = true;
   final String _title = 'Virtual Tour';
-
+  late final WebViewController _webViewController;
+  
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
+    _initializeWebView();
+  }
+  
+  void _initializeWebView() {
+    _webViewController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (int progress) {
-            // Update loading indicator
+            // Update loading indicator if needed
           },
           onPageStarted: (String url) {
             setState(() {
@@ -37,18 +42,15 @@ class _VirtualTourPageState extends ConsumerState<VirtualTourPage> {
             });
           },
           onWebResourceError: (WebResourceError error) {
-            // Handle error
-          },
-          onNavigationRequest: (NavigationRequest request) {
-            // Allow all navigation for virtual tour
-            return NavigationDecision.navigate;
+            setState(() {
+              _isLoading = false;
+            });
           },
         ),
+      )
+      ..loadRequest(
+        Uri.parse(widget.tourUrl ?? 'https://kugar.e-pinggirpapas-sumenep.com/virtual-tour'),
       );
-
-    // Load virtual tour URL
-    final url = widget.tourUrl ?? 'https://kugar.e-pinggirpapas-sumenep.com/virtual-tour';
-    _controller.loadRequest(Uri.parse(url));
   }
 
   @override
@@ -60,36 +62,48 @@ class _VirtualTourPageState extends ConsumerState<VirtualTourPage> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              _controller.reload();
+              _webViewController.reload();
             },
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          WebViewWidget(controller: _controller),
-          if (_isLoading)
-            Container(
-              color: Colors.white,
-              child: const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Loading Virtual Tour...'),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
+      body: kIsWeb ? _buildWebContent() : _buildMobileContent(),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           _showTourInfo();
         },
         child: const Icon(Icons.info_outline),
       ),
+    );
+  }
+  
+  Widget _buildWebContent() {
+    // Gunakan WebView untuk web dan mobile
+    return Stack(
+      children: [
+        WebViewWidget(controller: _webViewController),
+        if (_isLoading)
+          Container(
+            color: Colors.white,
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading Virtual Tour...'),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+  
+  Widget _buildMobileContent() {
+    // Untuk mobile, gunakan WebView atau tampilkan pesan
+    return const Center(
+      child: Text('Virtual Tour hanya tersedia di platform web'),
     );
   }
 
