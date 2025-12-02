@@ -93,36 +93,35 @@ class ProductProvider extends StateNotifier<ProductState> {
       
       print('DEBUG: API response: $response');
 
-      if (response['success'] == true && response['data'] != null) {
-        final data = response['data'] as Map<String, dynamic>;
-        final productsData = data['data'] as List<dynamic>?;
+      if (response != null && response['success'] == true) {
+        final data = response['data'] as Map<String, dynamic>?;
+        final productsData = (data != null && data['data'] is List) 
+            ? data['data'] as List<dynamic> 
+            : <dynamic>[];
         
-        print('DEBUG: Products data length: ${productsData?.length}');
+        print('DEBUG: Products data length: ${productsData.length}');
         
         if (productsData != null) {
-          final newProducts = productsData.map((p) {
+          final newProducts = productsData.map((product) {
             try {
-              return Product.fromJson(p as Map<String, dynamic>);
+              if (product is Map<String, dynamic>) {
+                return Product.fromJson(product);
+              }
+              return null;
             } catch (e) {
-              print('DEBUG: Error parsing product: $e');
-              // Create fallback product
-              return Product(
-                id: (p['id'] as int?) ?? 0,
-                name: p['name'] ?? p['nama'] ?? 'Unknown Product',
-                description: p['description'] ?? p['deskripsi'] ?? '',
-                price: (p['price'] ?? p['harga'] ?? 0).toDouble(),
-              );
+              print('Error parsing product: $e');
+              return null;
             }
-          }).toList();
+          }).whereType<Product>().toList();
 
           print('DEBUG: Parsed products count: ${newProducts.length}');
 
           state = state.copyWith(
-            products: refresh ? newProducts : [...state.products, ...newProducts],
+            products: [...state.products, ...newProducts],
             isLoading: false,
             isLoadingMore: false,
+            hasMore: (data?['next_page_url'] != null) ?? false,
             currentPage: state.currentPage + 1,
-            hasMore: newProducts.length >= 10,
           );
         } else {
           print('DEBUG: No products data found in response');
@@ -145,8 +144,11 @@ class ProductProvider extends StateNotifier<ProductState> {
       state = state.copyWith(
         isLoading: false,
         isLoadingMore: false,
-        error: e.toString(),
+        error: e.toString().contains('SocketException') 
+            ? 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.'
+            : 'Gagal memuat produk. Silakan coba lagi nanti.',
       );
+      print('Error loading products: $e');
     }
   }
 

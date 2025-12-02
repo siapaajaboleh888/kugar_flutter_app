@@ -1,10 +1,9 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:http/http.dart' as http;
 
-import 'config.dart';
-
-const baseUrl = 'http://wisatalembung.test/api';
+import 'core/config/app_config.dart';
 
 class ApiService {
   String? _token;
@@ -25,35 +24,82 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> login(String email, String password) async {
-    final url = Uri.parse('$baseUrl/auth/login');
-    final res = await http.post(
-      url,
-      headers: _headers(),
-      body: jsonEncode({'email': email, 'password': password}),
-    );
+    try {
+      final url = Uri.parse('${AppConfig.baseUrl}/auth/login');
+      developer.log('Login request to: $url');
+      
+      final res = await http.post(
+        url,
+        headers: _headers(),
+        body: jsonEncode({'email': email, 'password': password}),
+      );
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
-    if (res.statusCode == 200 && data['data']?['token'] != null) {
-      setToken(data['data']['token'] as String);
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      if (res.statusCode == 200 && data['data']?['token'] != null) {
+        setToken(data['data']['token'] as String);
+      }
+      return data;
+    } catch (e, stackTrace) {
+      developer.log('Login error: $e', error: e, stackTrace: stackTrace);
+      rethrow;
     }
-    return data;
   }
 
   Future<Map<String, dynamic>> getProduk({int page = 1}) async {
-    final url = Uri.parse('$baseUrl/produk?page=$page');
-    final res = await http.get(url, headers: _headers());
-    return jsonDecode(res.body) as Map<String, dynamic>;
+    try {
+      final url = Uri.parse('${AppConfig.baseUrl}/produk?page=$page');
+      developer.log('Fetching products from: $url');
+      
+      final res = await http.get(
+        url, 
+        headers: _headers()
+      );
+      
+      if (res.statusCode != 200) {
+        throw Exception('Failed to load products: ${res.statusCode}');
+      }
+      
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (e, stackTrace) {
+      developer.log('Error getting products: $e', error: e, stackTrace: stackTrace);
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>> getProdukDetail(int id) async {
-    final url = Uri.parse('$baseUrl/produk/$id');
-    final res = await http.get(url, headers: _headers());
+    try {
+      final url = Uri.parse('${AppConfig.baseUrl}/produk/$id');
+      developer.log('Fetching product detail from: $url');
+      
+      final res = await http.get(
+        url, 
+        headers: _headers()
+      );
+      
+      if (res.statusCode != 200) {
+        throw Exception('Failed to load product detail: ${res.statusCode}');
+      }
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> getAbout() async {
-    final url = Uri.parse('$baseUrl/content/about');
-    final res = await http.get(url, headers: _headers());
-    return jsonDecode(res.body) as Map<String, dynamic>;
+    try {
+      final url = Uri.parse('${AppConfig.baseUrl}/content/about');
+      developer.log('Fetching about content from: $url');
+      
+      final res = await http.get(
+        url, 
+        headers: _headers()
+      );
+      
+      if (res.statusCode != 200) {
+        throw Exception('Failed to load about content: ${res.statusCode}');
+      }
+      
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (e, stackTrace) {
+      developer.log('Error getting about content: $e', error: e, stackTrace: stackTrace);
+      rethrow;
+    }
   }
 }

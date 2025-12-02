@@ -32,6 +32,9 @@ class _ProductCatalogPageState extends ConsumerState<ProductCatalogPage> {
     final categories = productState.categories;
     final isLoading = productState.isLoading;
     final error = productState.error;
+    
+    // Debug log
+    debugPrint('Product catalog build - Loading: $isLoading, Products: ${products.length}, Error: $error');
 
     return Scaffold(
       appBar: AppBar(
@@ -135,6 +138,12 @@ class _ProductCatalogPageState extends ConsumerState<ProductCatalogPage> {
   }
 
   Widget _buildProductGrid(BuildContext context, List<dynamic> products) {
+    if (products.isEmpty) {
+      return const Center(
+        child: Text('Tidak ada produk yang tersedia'),
+      );
+    }
+
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -145,22 +154,29 @@ class _ProductCatalogPageState extends ConsumerState<ProductCatalogPage> {
       ),
       itemCount: products.length,
       itemBuilder: (context, index) {
-        final product = products[index] as Product;
-        return _ProductCard(
-          product: {
-            'id': product.id,
-            'nama': product.name,
-            'name': product.name,
-            'harga': product.price,
-            'price': product.price,
-            'deskripsi': product.description,
-            'description': product.description,
-            'image_url': product.imageUrl,
-            'image': product.imageUrl,
-            'gambar': product.imageUrl,
-            'rating': product.rating,
-          },
-        );
+        try {
+          if (products[index] is! Product) return const SizedBox.shrink();
+          
+          final product = products[index] as Product;
+          return _ProductCard(
+            product: {
+              'id': product.id,
+              'nama': product.name,
+              'name': product.name,
+              'harga': product.price,
+              'price': product.price,
+              'deskripsi': product.description,
+              'description': product.description,
+              'image_url': product.imageUrl,
+              'image': product.imageUrl,
+              'gambar': product.imageUrl,
+              'rating': product.rating ?? 0.0,
+            },
+          );
+        } catch (e) {
+          debugPrint('Error building product card: $e');
+          return const SizedBox.shrink();
+        }
       },
     );
   }
@@ -194,22 +210,116 @@ class _ProductCard extends StatelessWidget {
 
   const _ProductCard({required this.product});
 
+  String? _getImageUrl() {
+    try {
+      debugPrint('\n=== IMAGE URL DEBUG START ===');
+      debugPrint('Product ID: ${product['id']}');
+      debugPrint('Available fields: ${product.keys}');
+      
+      // Cari URL gambar dari field yang mungkin
+      String? imageUrl;
+      
+      // Cek field yang mungkin berisi URL gambar
+      final possibleFields = [
+        'image_url', 'imageUrl', 'image',
+        'foto', 'photo',
+        'gambar', 'image_path', 'url_gambar'
+      ];
+      
+      for (var field in possibleFields) {
+        if (product[field] != null && product[field].toString().isNotEmpty) {
+          imageUrl = product[field].toString().trim();
+          debugPrint('Found image URL in field "$field": $imageUrl');
+          
+          // Bersihkan URL dari karakter yang tidak diinginkan
+          imageUrl = imageUrl.replaceAll('\\/', '/');
+          
+          // Pastikan URL memiliki protokol
+          if (!imageUrl.startsWith('http')) {
+            imageUrl = 'http://$imageUrl';
+          }
+          
+          debugPrint('Processed URL: $imageUrl');
+          break;
+        }
+      }
+
+      // Jika tidak ditemukan URL gambar
+      if (imageUrl == null || imageUrl.isEmpty) {
+        debugPrint('No image URL found for product ${product['id']}');
+        return null;
+      }
+
+      // Clean up URL
+      debugPrint('\n--- URL Processing ---');
+      debugPrint('Before cleanup: $imageUrl');
+      
+      imageUrl = imageUrl.trim();
+      debugPrint('After trim: $imageUrl');
+      
+      // Handle escaped backslashes
+      if (imageUrl.contains(r'\/')) {
+        debugPrint('Found escaped backslashes, replacing...');
+        imageUrl = imageUrl.replaceAll(r'\/', '/');
+        debugPrint('After replacing backslashes: $imageUrl');
+      }
+      
+      // For Chrome, use wisatalembung.test directly instead of 10.0.2.2
+      if (imageUrl.contains('wisatalembung.test')) {
+        debugPrint('Using wisatalembung.test domain: $imageUrl');
+      }
+      
+      // Cek URL final
+      debugPrint('\n--- Final URL Check ---');
+      debugPrint('Is absolute URL: ${imageUrl.startsWith(RegExp(r'https?://'))}');
+      debugPrint('URL length: ${imageUrl.length}');
+      debugPrint('Final URL: $imageUrl');
+      
+      // Jika URL sudah lengkap
+      if (imageUrl.startsWith(RegExp(r'https?://'))) {
+        debugPrint('Using full URL: $imageUrl');
+        debugPrint('=== IMAGE URL DEBUG END ===\n');
+        return imageUrl;
+      }
+
+      // Handle relative paths - use wisatalembung.test for Chrome
+      final baseUrl = 'http://wisatalembung.test';
+      
+      // Jika URL relatif dengan storage/
+      if (imageUrl.startsWith('storage/') || imageUrl.startsWith('/storage/')) {
+        final url = '$baseUrl/${imageUrl.startsWith('/') ? imageUrl.substring(1) : imageUrl}';
+        debugPrint('Converted storage path to URL: $url');
+        return url;
+      }
+
+      // Jika URL relatif tanpa prefix
+      if (!imageUrl.startsWith('http')) {
+        // Hapus leading slash jika ada
+        if (imageUrl.startsWith('/')) {
+          imageUrl = imageUrl.substring(1);
+        }
+        final url = '$baseUrl/storage/$imageUrl';
+        debugPrint('Converted relative path to URL: $url');
+        return url;
+      }
+
+      return imageUrl;
+    } catch (e, stackTrace) {
+      debugPrint('Error getting image URL: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final name = product['nama'] ?? product['name'] ?? 'Product';
     final price = product['harga']?.toString() ?? '0';
-    final imageUrl =
-        product['image_url'] ?? product['image'] ?? product['gambar'];
-
-    final finalImageUrl = imageUrl != null && !imageUrl.startsWith('http')
-        ? 'https://kugar.e-pinggirpapas-sumenep.com/storage/$imageUrl'
-        : imageUrl;
-
-    print(
-      'DEBUG _ProductCard: product id=${product['id']}, raw imageUrl=$imageUrl, final url=$finalImageUrl',
-    );
-    final rating = product['rating']?.toDouble();
-
+    final imageUrl = _getImageUrl();
+    
+    // Debug log
+    debugPrint('Product ID: ${product['id']} - Image URL: $imageUrl');
+    
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -222,6 +332,7 @@ class _ProductCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Image Container
             Expanded(
               flex: 3,
               child: Container(
@@ -236,31 +347,11 @@ class _ProductCard extends StatelessWidget {
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(16),
                   ),
-                  child: finalImageUrl != null
-                      ? CachedNetworkImage(
-                          imageUrl: finalImageUrl,
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) =>
-                              const Center(child: CircularProgressIndicator()),
-                          errorWidget: (context, url, error) => Container(
-                            color: Colors.grey.shade200,
-                            child: const Icon(
-                              Icons.image_not_supported_outlined,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        )
-                      : Container(
-                          color: Colors.grey.shade200,
-                          child: const Icon(
-                            Icons.image_outlined,
-                            color: Colors.grey,
-                            size: 48,
-                          ),
-                        ),
+                  child: _buildImageWidget(imageUrl),
                 ),
               ),
             ),
+            // Product Info
             Expanded(
               flex: 2,
               child: Padding(
@@ -277,19 +368,6 @@ class _ProductCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const Spacer(),
-                    if (rating != null) ...[
-                      Row(
-                        children: [
-                          Icon(Icons.star, size: 16, color: Colors.amber),
-                          const SizedBox(width: 4),
-                          Text(
-                            rating.toStringAsFixed(1),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                    ],
                     Text(
                       'Rp $price',
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -303,6 +381,80 @@ class _ProductCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+  
+  Widget _buildImageWidget(String? imageUrl) {
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return _buildErrorWidget('Tidak ada gambar');
+    }
+
+    // Debug log
+    debugPrint('Trying to load image: $imageUrl');
+
+    // Gunakan Image.network dengan error handling yang lebih baik
+    return Image.network(
+      imageUrl,
+      fit: BoxFit.cover,
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        if (wasSynchronouslyLoaded) return child;
+        return frame == null 
+            ? _buildLoadingWidget()
+            : child;
+      },
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return _buildLoadingWidget();
+      },
+      errorBuilder: (context, error, stackTrace) {
+        debugPrint('Image load error: $error');
+        debugPrint('Stack trace: $stackTrace');
+        return _buildErrorWidget('Gagal memuat gambar');
+      },
+      headers: const {
+        'Accept': 'image/*',
+        'Access-Control-Allow-Origin': '*',
+      },
+    );
+  }
+  
+  Widget _buildLoadingWidget() {
+    return Container(
+      color: Colors.grey[200],
+      child: const Center(
+        child: SizedBox(
+          width: 30,
+          height: 30,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildErrorWidget(String message) {
+    return Container(
+      color: Colors.grey[100],
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.broken_image_outlined,
+            color: Colors.grey,
+            size: 36,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 10,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
