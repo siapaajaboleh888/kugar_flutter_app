@@ -325,8 +325,23 @@ class _ProductCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap: () {
-          final productId = product['id'] as int;
-          context.go('${AppRouter.productDetail}/$productId');
+          try {
+            final productId = product['id']?.toString();
+            if (productId == null) {
+              throw Exception('Product ID is null');
+            }
+            debugPrint('Navigating to product detail with ID: $productId');
+            context.goNamed(
+              'productDetail',
+              pathParameters: {'id': productId},
+            );
+          } catch (e, stackTrace) {
+            debugPrint('Error navigating to product detail: $e');
+            debugPrint('Stack trace: $stackTrace');
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Error: Gagal membuka detail produk')),
+            );
+          }
         },
         borderRadius: BorderRadius.circular(16),
         child: Column(

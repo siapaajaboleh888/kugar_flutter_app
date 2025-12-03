@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart' as url_launcher;
+import 'package:url_launcher/url_launcher.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 import '../../providers/product_provider.dart';
 import '../../providers/cart_provider.dart';
@@ -47,45 +48,36 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
 
     try {
       final apiService = ref.read(apiServiceProvider);
-      
-      // Validasi productId
-      if (widget.productId <= 0) {
-        throw Exception('ID produk tidak valid');
-      }
+      debugPrint('Mengambil detail produk ID: ${widget.productId}');
       
       final response = await apiService.getProductDetail(widget.productId);
-      
+      debugPrint('Respons API: ${response.toString()}');
+
       if (!mounted) return;
       
       if (response['success'] == true && response['data'] != null) {
-        final productData = Map<String, dynamic>.from(response['data']);
-        final product = Product.fromJson(productData);
+        final productData = response['data'] as Map<String, dynamic>;
+        debugPrint('Data produk: $productData');
         
         setState(() {
           _product = {
-            'id': product.id,
-            'nama': product.name,
-            'name': product.name,
-            'harga': product.price,
-            'price': product.price,
-            'deskripsi': product.description,
-            'description': product.description,
-            'image_url': product.imageUrl,
-            'image': product.imageUrl,
-            'gambar': product.imageUrl,
-            'rating': product.rating,
-            'category': product.category,
-            'is_available': product.isAvailable,
+            'id': productData['id'],
+            'nama': productData['nama'] ?? productData['title'] ?? 'Produk',
+            'harga': double.tryParse((productData['harga'] ?? productData['price'] ?? '0').toString()) ?? 0.0,
+            'deskripsi': productData['deskripsi'] ?? productData['text'] ?? '',
+            'image_url': productData['image_url'] ?? productData['foto'] ?? productData['image'],
+            'satuan': productData['satuan'] ?? 'pcs',
+            'nomor_hp': productData['nomor_hp'] ?? '',
+            'alamat': productData['alamat'] ?? '',
+            'is_available': true,
           };
           _isLoading = false;
         });
       } else {
-        final errorMessage = response['message'] ?? 'Gagal memuat detail produk';
-        throw Exception(errorMessage);
+        throw Exception(response['message'] ?? 'Gagal memuat detail produk');
       }
     } catch (e, stackTrace) {
-      debugPrint('Error loading product detail:');
-      debugPrint(e.toString());
+      debugPrint('Error: $e');
       debugPrint('Stack trace: $stackTrace');
       
       if (mounted) {
@@ -94,7 +86,6 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
           _isLoading = false;
         });
         
-        // Tampilkan snackbar error
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: ${_error ?? "Terjadi kesalahan"}'),
@@ -194,198 +185,97 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final size = MediaQuery.of(context).size;
-
-    // Tampilkan loading indicator jika sedang memuat data
-    if (_isLoading) {
-      return const Scaffold(
-        appBar: null,
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    // Tampilkan pesan error jika ada error
-    if (_error != null) {
-      return Scaffold(
-        appBar: AppBar(),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 16),
-              Text(
-                'Gagal memuat detail produk',
-                style: theme.textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                child: Text(
-                  _error!,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _loadProductDetail,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text('Coba Lagi'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Tampilkan pesan jika produk tidak ditemukan
-    if (_product == null) {
-      return Scaffold(
-        appBar: AppBar(),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.search_off, size: 48, color: Colors.grey),
-              const SizedBox(height: 16),
-              Text(
-                'Produk tidak ditemukan',
-                style: theme.textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Produk yang Anda cari tidak ditemukan atau telah dihapus',
-                style: theme.textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => context.go('/'),
-                child: const Text('Kembali ke Beranda'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Deklarasi variabel product, price, dan formattedPrice
-    final product = _product!;
-    final price = product['harga'] is double 
-        ? product['harga'] 
-        : double.tryParse(product['harga']?.toString() ?? '0') ?? 0.0;
-        
-    final formattedPrice = NumberFormat.currency(
-      locale: 'id_ID',
-      symbol: 'Rp',
-      decimalDigits: 0,
-    ).format(price);
-
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 300,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              background: _buildProductImage(product['image_url'] ?? ''),
-            ),
-            leading: IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(
-                  color: Colors.black38,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.arrow_back, color: Colors.white),
-              ),
-              onPressed: () => context.pop(),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Nama dan Harga
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      appBar: AppBar(
+        title: const Text('Detail Produk'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            // Selalu arahkan ke halaman daftar produk
+            context.go('/products');
+          },
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              product['nama'] ?? 'Nama Produk',
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              formattedPrice,
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                color: Colors.blue,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
+                      const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                      const SizedBox(height: 16),
+                      Text(
+                        _error!,
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
                       ),
-                      // Tombol favorit
-                      IconButton(
-                        icon: const Icon(Icons.favorite_border, size: 28),
-                        onPressed: () {
-                          // TODO: Add to favorites
-                        },
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadProductDetail,
+                        child: const Text('Coba Lagi'),
                       ),
                     ],
                   ),
-                  
-                  // Kuantitas
-                  const SizedBox(height: 16),
-                  _buildQuantitySelector(),
-                  
-                  // Deskripsi
-                  const SizedBox(height: 24),
-                  _buildSectionTitle('Deskripsi'),
-                  const SizedBox(height: 8),
-                  Text(
-                    product['deskripsi'] ?? 'Tidak ada deskripsi',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[800],
-                      height: 1.6,
-                    ),
-                  ),
-                  
-                  // Informasi Penjual
-                  const SizedBox(height: 24),
-                  _buildSectionTitle('Informasi Penjual'),
-                  const SizedBox(height: 12),
-                  _buildSellerInfo(context, product),
-                  
-                  // Spacer untuk bottom navigation
-                  const SizedBox(height: 100),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: _buildBottomBar(context, product, price),
+                )
+              : _product != null
+                  ? _buildProductDetail()
+                  : const Center(child: Text('Produk tidak ditemukan')),
+      bottomNavigationBar: _product != null
+          ? _buildBottomBar(
+              context, 
+              _product!, 
+              double.tryParse(_product!['harga']?.toString() ?? '0') ?? 0
+            )
+          : null,
     );
   }
-  
-  
-  
+
+  Widget _buildProductDetail() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Gambar Produk
+          _buildProductImage(_product!['image_url']),
+          const SizedBox(height: 16),
+          
+          // Nama dan Harga
+          Text(
+            _product!['nama'] ?? 'Produk',
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Rp ${NumberFormat('#,##0', 'id_ID').format(_product!['harga'] is double ? _product!['harga'] : double.tryParse(_product!['harga']?.toString() ?? '0') ?? 0)} / ${_product!['satuan']}',
+            style: const TextStyle(
+              fontSize: 20,
+              color: Colors.green,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          
+          // Deskripsi
+          const SizedBox(height: 16),
+          _buildSectionTitle('Deskripsi'),
+          const SizedBox(height: 8),
+          Text(
+            _product!['deskripsi'] ?? 'Tidak ada deskripsi',
+            style: const TextStyle(fontSize: 16),
+          ),
+          
+          // Info Penjual
+          const SizedBox(height: 24),
+          _buildSellerInfo(context, _product!),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSellerInfo(BuildContext context, Map<String, dynamic> product) {
     return Card(
       elevation: 2,
@@ -393,57 +283,32 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const CircleAvatar(
-                radius: 24,
-                backgroundColor: Colors.grey,
-                child: Icon(Icons.person, color: Colors.white),
-              ),
-              title: const Text(
-                'Penjual',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: product['alamat'] != null 
-                  ? Text(product['alamat'].toString())
-                  : null,
-              trailing: ElevatedButton.icon(
-                onPressed: product['nomor_hp'] != null 
-                    ? () => _launchPhoneCall(product['nomor_hp'].toString())
-                    : null,
-                icon: const Icon(Icons.phone, size: 16),
-                label: const Text('Hubungi'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
+            const Text(
+              'Informasi Penjual',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            if (product['nomor_hp'] != null) ...[
-              const Divider(height: 24),
-              _buildContactInfo(
-                icon: Icons.phone,
-                title: 'Telepon',
-                value: product['nomor_hp'].toString(),
-                onTap: () => _launchPhoneCall(product['nomor_hp'].toString()),
-              ),
-            ],
-            if (product['alamat'] != null) ...[
-              const SizedBox(height: 8),
-              _buildContactInfo(
-                icon: Icons.location_on,
-                title: 'Alamat',
-                value: product['alamat'].toString(),
-                onTap: () {
-                  // TODO: Buka peta
-                },
-              ),
-            ],
+            const SizedBox(height: 12),
+            _buildContactInfo(
+              icon: Icons.location_on,
+              title: 'Alamat',
+              value: product['alamat'] ?? 'Alamat tidak tersedia',
+            ),
+            const SizedBox(height: 8),
+            _buildContactInfo(
+              icon: Icons.phone,
+              title: 'Telepon',
+              value: product['nomor_hp'] ?? 'Nomor tidak tersedia',
+              onTap: product['nomor_hp'] != null
+                  ? () => _launchPhoneCall(product['nomor_hp'])
+                  : null,
+            ),
           ],
         ),
       ),
@@ -456,70 +321,54 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
     required String value,
     VoidCallback? onTap,
   }) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.blue),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text(value),
+    return InkWell(
       onTap: onTap,
-      trailing: onTap != null ? const Icon(Icons.chevron_right) : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 20, color: Colors.grey[700]),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildQuantitySelector() {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.remove, size: 20),
-            onPressed: _quantity > 1 ? () {
-              setState(() => _quantity--);
-            } : null,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-          SizedBox(
-            width: 40,
-            child: Text(
-              '$_quantity',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.add, size: 20),
-            onPressed: () {
-              setState(() => _quantity++);
-            },
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-        ],
-      ),
-    );
-  }
-  
   Future<void> _launchPhoneCall(String phoneNumber) async {
     final url = 'tel:$phoneNumber';
-    try {
-      if (await url_launcher.canLaunchUrl(Uri.parse(url))) {
-        await url_launcher.launchUrl(Uri.parse(url));
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Tidak dapat membuka aplikasi telepon')),
-          );
-        }
-      }
-    } catch (e) {
+    if (await canLaunchUrl(Uri.parse(url))) {
+      await launchUrl(Uri.parse(url));
+    } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Terjadi kesalahan saat membuka aplikasi telepon')),
+          const SnackBar(
+            content: Text('Tidak dapat melakukan panggilan telepon'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
