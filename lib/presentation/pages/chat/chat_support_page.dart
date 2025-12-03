@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/router/app_router.dart';
 
 class ChatSupportPage extends ConsumerStatefulWidget {
   const ChatSupportPage({super.key});
@@ -85,6 +88,10 @@ class _ChatSupportPageState extends ConsumerState<ChatSupportPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go(AppRouter.home),
+        ),
         title: Row(
           children: [
             Container(

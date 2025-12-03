@@ -20,6 +20,10 @@ class _QRScannerPageState extends ConsumerState<QRScannerPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go(AppRouter.home),
+        ),
         title: const Text('QR Scanner'),
         actions: [
           IconButton(
