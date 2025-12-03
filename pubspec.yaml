@@ -75,8 +75,7 @@ dependencies:
   # Notifications
   flutter_local_notifications: ^17.1.2
   
-  # WebView
-  webview_flutter: ^4.8.0
+  # WebView - Will be added with specific version
   
   # Web support
   web: ^0.5.1

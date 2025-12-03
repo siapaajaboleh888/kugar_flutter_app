@@ -1,11 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:async';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:go_router/go_router.dart';
-import '../../../../core/router/app_router.dart';
 
 class VirtualTour {
   final int id;
@@ -27,20 +25,15 @@ class VirtualTour {
   });
 
   factory VirtualTour.fromJson(Map<String, dynamic> json) {
-    try {
-      return VirtualTour(
-        id: json['id'] as int? ?? 0,
-        title: (json['title'] as String?) ?? 'Judul Tidak Tersedia',
-        description: (json['description'] as String?) ?? 'Tidak ada deskripsi',
-        thumbnail: json['thumbnail'] as String?,
-        link: (json['link'] as String?) ?? '',
-        isActive: (json['is_active'] as int?) == 1,
-        order: (json['order'] as int?) ?? 0,
-      );
-    } catch (e) {
-      debugPrint('Error parsing VirtualTour: $e');
-      rethrow;
-    }
+    return VirtualTour(
+      id: json['id'] ?? 0,
+      title: json['title'] ?? 'No Title',
+      description: json['description'] ?? 'No Description',
+      thumbnail: json['thumbnail'],
+      link: json['link'] ?? '',
+      isActive: (json['is_active'] ?? 0) == 1,
+      order: json['order'] ?? 0,
+    );
   }
 }
 
@@ -59,50 +52,24 @@ class VirtualTourProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      debugPrint('Mengambil data virtual tour...');
       final response = await http.get(
         Uri.parse('http://wisatalembung.test/api/virtual-tour'),
       ).timeout(const Duration(seconds: 10));
 
-      debugPrint('Status code: ${response.statusCode}');
-      debugPrint('Response body: ${response.body}');
-
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
-        debugPrint('Response data type: ${jsonData.runtimeType}');
-        
-        if (jsonData is Map && jsonData['success'] == true) {
-          final responseData = jsonData['data'] as Map<String, dynamic>;
-          
-          if (responseData.containsKey('data') && responseData['data'] is List) {
-            _tours = (responseData['data'] as List)
-                .map((item) => VirtualTour.fromJson(item as Map<String, dynamic>))
-                .toList();
-            debugPrint('Berhasil memuat ${_tours.length} virtual tour');
-          } else {
-            _error = 'Format data virtual tour tidak valid';
-            debugPrint('Data virtual tour tidak ditemukan dalam respons');
-          }
+        if (jsonData['data'] != null) {
+          _tours = (jsonData['data'] as List)
+              .map((item) => VirtualTour.fromJson(item))
+              .toList();
         } else {
-          _error = 'Respon tidak valid dari server';
-          debugPrint('Format respons tidak valid: ${response.body}');
+          _error = 'Format data tidak valid';
         }
       } else {
         _error = 'Gagal memuat data: ${response.statusCode}';
-        debugPrint('Gagal memuat data: ${response.statusCode}');
       }
-    } on TimeoutException {
-      _error = 'Waktu koneksi habis. Silakan coba lagi.';
-      debugPrint('Waktu koneksi habis');
-    } on FormatException catch (e) {
-      _error = 'Format data tidak valid: ${e.message}';
-      debugPrint('Format exception: $e');
-    } on http.ClientException catch (e) {
-      _error = 'Gagal terhubung ke server: ${e.message}';
-      debugPrint('Client exception: $e');
     } catch (e) {
       _error = 'Terjadi kesalahan: $e';
-      debugPrint('Error: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -114,8 +81,22 @@ final virtualTourProvider = ChangeNotifierProvider<VirtualTourProvider>((ref) {
   return VirtualTourProvider();
 });
 
-class VirtualTourPage extends ConsumerWidget {
-  const VirtualTourPage({super.key});
+class VirtualTourPage extends ConsumerStatefulWidget {
+  const VirtualTourPage({Key? key}) : super(key: key);
+
+  @override
+  ConsumerState<VirtualTourPage> createState() => _VirtualTourPageState();
+}
+
+class _VirtualTourPageState extends ConsumerState<VirtualTourPage> {
+  final _refreshKey = GlobalKey<RefreshIndicatorState>();
+
+  @override
+  void initState() {
+    super.initState();
+    // Memuat data saat pertama kali dibuka
+    Future.microtask(() => ref.read(virtualTourProvider).fetchTours());
+  }
 
   Future<void> _launchURL(String url, BuildContext context) async {
     if (url.isEmpty) {
@@ -133,7 +114,7 @@ class VirtualTourPage extends ConsumerWidget {
           uri,
           mode: LaunchMode.externalApplication,
         );
-        
+
         if (!launched && context.mounted) {
           throw 'Gagal membuka browser';
         }
@@ -154,37 +135,27 @@ class VirtualTourPage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final tourProvider = ref.watch(virtualTourProvider);
-
-    // Load data saat pertama kali membuka halaman
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!tourProvider.isLoading && tourProvider.tours.isEmpty) {
-        tourProvider.fetchTours();
-      }
-    });
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Virtual Tour'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // Gunakan GoRouter untuk navigasi ke halaman utama
-            // Menggunakan '/home' karena itu adalah rute yang didefinisikan di AppRouter
-            context.go(AppRouter.home);
-          },
+          onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: tourProvider.isLoading 
-                ? null 
-                : () => tourProvider.fetchTours(),
+            onPressed: tourProvider.isLoading
+                ? null
+                : () => _refreshKey.currentState?.show(),
           ),
         ],
       ),
       body: RefreshIndicator(
+        key: _refreshKey,
         onRefresh: () => tourProvider.fetchTours(),
         child: _buildContent(tourProvider, context),
       ),
@@ -193,29 +164,19 @@ class VirtualTourPage extends ConsumerWidget {
 
   Widget _buildContent(VirtualTourProvider tourProvider, BuildContext context) {
     if (tourProvider.isLoading && tourProvider.tours.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Memuat data virtual tour...'),
-          ],
-        ),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (tourProvider.error != null) {
-      return SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          height: MediaQuery.of(context).size.height * 0.8,
-          child: Center(
+      return Center(
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 64),
+                const Icon(Icons.signal_wifi_off, size: 64, color: Colors.grey),
                 const SizedBox(height: 24),
                 const Text(
                   'Gagal Memuat Data',
@@ -281,10 +242,6 @@ class VirtualTourPage extends ConsumerWidget {
         final tour = tourProvider.tours[index];
         return Card(
           margin: const EdgeInsets.only(bottom: 16),
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
           child: InkWell(
             onTap: () => _launchURL(tour.link, context),
             borderRadius: BorderRadius.circular(12),
@@ -293,24 +250,6 @@ class VirtualTourPage extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (tour.thumbnail != null && tour.thumbnail!.isNotEmpty)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        tour.thumbnail!,
-                        width: double.infinity,
-                        height: 180,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          height: 180,
-                          color: Colors.grey[200],
-                          child: const Center(
-                            child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
-                          ),
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 16),
                   Text(
                     tour.title,
                     style: const TextStyle(
@@ -325,14 +264,14 @@ class VirtualTourPage extends ConsumerWidget {
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                   ],
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.tonalIcon(
                       onPressed: () => _launchURL(tour.link, context),
                       icon: const Icon(Icons.play_arrow, size: 24),
-                      label: const Text(
-                        'MULAI VIRTUAL TOUR',
+                      label: const Text('MULAI VIRTUAL TOUR', 
                         style: TextStyle(letterSpacing: 0.5),
                       ),
                       style: FilledButton.styleFrom(

@@ -190,10 +190,8 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
         title: const Text('Detail Produk'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // Selalu arahkan ke halaman daftar produk
-            context.go('/products');
-          },
+          onPressed: () => context.goNamed('productCatalog'),
+          tooltip: 'Kembali ke Produk',
         ),
       ),
       body: _isLoading

@@ -39,6 +39,11 @@ class _ProductCatalogPageState extends ConsumerState<ProductCatalogPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Products'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.goNamed('home'),
+          tooltip: 'Kembali ke Beranda',
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
