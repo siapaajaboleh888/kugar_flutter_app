@@ -15,41 +15,41 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
     {
       'id': 'ORD-001',
       'customer': 'John Doe',
-      'date': '2023-11-15',
+      'date': '2025-11-15',
       'status': 'Pending',
-      'amount': 125.99,
+      'amount': 125990,
       'items': 3,
     },
     {
       'id': 'ORD-002',
       'customer': 'Jane Smith',
-      'date': '2023-11-14',
+      'date': '2025-11-14',
       'status': 'Processing',
-      'amount': 89.50,
+      'amount': 89500,
       'items': 2,
     },
     {
       'id': 'ORD-003',
       'customer': 'Bob Johnson',
-      'date': '2023-11-13',
+      'date': '2025-11-13',
       'status': 'Shipped',
-      'amount': 210.75,
+      'amount': 210750,
       'items': 5,
     },
     {
       'id': 'ORD-004',
       'customer': 'Alice Brown',
-      'date': '2023-11-12',
+      'date': '2025-11-12',
       'status': 'Delivered',
-      'amount': 156.20,
+      'amount': 156200,
       'items': 4,
     },
     {
       'id': 'ORD-005',
       'customer': 'Charlie Wilson',
-      'date': '2023-11-11',
+      'date': '2025-11-11',
       'status': 'Cancelled',
-      'amount': 75.30,
+      'amount': 75300,
       'items': 2,
     },
   ];
@@ -72,6 +72,11 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/admin/dashboard'),
+          tooltip: 'Kembali ke Dashboard',
+        ),
         title: const Text('Manage Orders'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60),
@@ -125,7 +130,11 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
 
   Widget _buildOrderCard(Map<String, dynamic> order) {
     final dateFormat = DateFormat('MMM dd, yyyy');
-    final currencyFormat = NumberFormat.currency(symbol: '\$');
+    final currencyFormat = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp ',
+      decimalDigits: 0,
+    );
     
     Color statusColor;
     switch (order['status']) {
@@ -301,7 +310,11 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
 
   void _showOrderDetails(Map<String, dynamic> order) {
     final dateFormat = DateFormat('MMM dd, yyyy hh:mm a');
-    final currencyFormat = NumberFormat.currency(symbol: '\$');
+    final currencyFormat = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp ',
+      decimalDigits: 0,
+    );
 
     showModalBottomSheet(
       context: context,
@@ -362,8 +375,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                _buildOrderItem('Product 1', 1, 25.99),
-                _buildOrderItem('Product 2', 2, 35.50),
+                _buildOrderItem('Product 1', 1, 25990),
+                _buildOrderItem('Product 2', 2, 35500),
                 const Divider(),
                 _buildOrderTotal(currencyFormat.format(order['amount'])),
                 const SizedBox(height: 24),
@@ -442,7 +455,11 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
   }
 
   Widget _buildOrderItem(String name, int quantity, double price) {
-    final currencyFormat = NumberFormat.currency(symbol: '\$');
+    final currencyFormat = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp ',
+      decimalDigits: 0,
+    );
     
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),

@@ -73,17 +73,42 @@ class ApiService {
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
       print('DEBUG LOGIN: Attempting login with email: $email');
+      
+      // Log the full request details
+      final requestData = {'email': email, 'password': password};
+      print('DEBUG LOGIN: Request URL: ${_dio.options.baseUrl}/auth/login');
+      print('DEBUG LOGIN: Request data: ${jsonEncode(requestData)}');
+      print('DEBUG LOGIN: Request headers: ${_dio.options.headers}');
+      
       final response = await _dio.post(
         '/auth/login',
-        data: {'email': email, 'password': password},
+        data: requestData,
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
       );
 
       print('DEBUG LOGIN: Response status: ${response.statusCode}');
+      print('DEBUG LOGIN: Response headers: ${response.headers}');
       print('DEBUG LOGIN: Response data: ${response.data}');
 
       final data = response.data as Map<String, dynamic>;
       if (response.statusCode == 200 && data['data']?['token'] != null) {
-        await setToken(data['data']['token'] as String);
+        final responseData = data['data'] as Map<String, dynamic>;
+        final token = responseData['token'] as String;
+        final userData = responseData['user'] as Map<String, dynamic>?;
+        
+        await setToken(token);
+        
+        // Save user data to SharedPreferences
+        if (userData != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(AppConstants.userKey, jsonEncode(userData));
+          print('DEBUG LOGIN: Saved user data to SharedPreferences: ${jsonEncode(userData)}');
+        }
       }
       return data;
     } on DioException catch (e) {
@@ -91,6 +116,9 @@ class ApiService {
         'DEBUG LOGIN: DioException - Status: ${e.response?.statusCode}, Message: ${e.message}',
       );
       print('DEBUG LOGIN: Response data: ${e.response?.data}');
+      print('DEBUG LOGIN: Response headers: ${e.response?.headers}');
+      print('DEBUG LOGIN: Request URL: ${e.requestOptions.uri}');
+      print('DEBUG LOGIN: Request data: ${e.requestOptions.data}');
       throw _handleDioError(e);
     }
   }

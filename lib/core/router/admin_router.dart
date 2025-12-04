@@ -5,12 +5,14 @@ import '../../presentation/pages/admin/auth/admin_login_page.dart';
 import '../../presentation/pages/admin/dashboard/admin_dashboard_page.dart';
 import '../../presentation/pages/admin/users/admin_users_page.dart';
 import '../../presentation/pages/admin/orders/admin_orders_page.dart';
+import '../../presentation/pages/admin/products/admin_products_page.dart';
 import '../../presentation/pages/admin/chats/admin_chats_page.dart';
 
 class AdminRouter {
   static const String login = '/admin/login';
   static const String dashboard = '/admin/dashboard';
   static const String users = '/admin/users';
+  static const String products = '/admin/products';
   static const String orders = '/admin/orders';
   static const String chats = '/admin/chats';
 
@@ -32,6 +34,11 @@ class AdminRouter {
         path: users,
         name: 'adminUsers',
         builder: (context, state) => const AdminUsersPage(),
+      ),
+      GoRoute(
+        path: products,
+        name: 'adminProducts',
+        builder: (context, state) => const AdminProductsPage(),
       ),
       GoRoute(
         path: orders,

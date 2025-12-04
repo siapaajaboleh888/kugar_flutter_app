@@ -24,23 +24,29 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Simple proxy middleware
-app.all('/api/*', (req, res) => {
+// Unified proxy middleware for both API and static assets
+const proxyHandler = (req, res) => {
   const targetUrl = new URL(`http://wisatalembung.test${req.originalUrl}`);
-  
+
+  const isImage = req.path.includes('/assets/') || req.path.includes('/storage/');
   console.log(`\n📡 [${new Date().toISOString()}] ${req.method} ${req.path}`);
-  console.log(`   → ${targetUrl.toString()}`);
+  console.log(`   → ${targetUrl.toString()} ${isImage ? '🖼️ IMAGE' : ''}`);
 
   const options = {
     hostname: targetUrl.hostname,
     port: targetUrl.port || 80,
     path: targetUrl.pathname + targetUrl.search,
     method: req.method,
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-    },
+    headers: {},
   };
+
+  // Set appropriate headers based on request type
+  if (isImage) {
+    options.headers['Accept'] = 'image/*,*/*';
+  } else {
+    options.headers['Accept'] = 'application/json';
+    options.headers['Content-Type'] = 'application/json';
+  }
 
   // Copy relevant headers
   Object.keys(req.headers).forEach(key => {
@@ -51,15 +57,15 @@ app.all('/api/*', (req, res) => {
 
   const proxyReq = http.request(options, (proxyRes) => {
     console.log(`   ✅ Status: ${proxyRes.statusCode}`);
-    
+
     // Add CORS headers
     const responseHeaders = {
       ...proxyRes.headers,
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept',
     };
-    
+
     res.writeHead(proxyRes.statusCode, responseHeaders);
     proxyRes.pipe(res);
   });
@@ -67,7 +73,9 @@ app.all('/api/*', (req, res) => {
   proxyReq.setTimeout(10000, () => {
     console.error(`   ❌ Timeout`);
     proxyReq.destroy();
-    res.status(504).json({ error: 'Gateway timeout' });
+    if (!res.headersSent) {
+      res.status(504).json({ error: 'Gateway timeout' });
+    }
   });
 
   proxyReq.on('error', (err) => {
@@ -77,12 +85,20 @@ app.all('/api/*', (req, res) => {
     }
   });
 
-  if (req.body && Object.keys(req.body).length > 0) {
+  // Only send body data for non-GET requests with JSON content
+  if (req.method !== 'GET' && req.body && Object.keys(req.body).length > 0) {
     proxyReq.write(JSON.stringify(req.body));
   }
-  
+
   proxyReq.end();
-});
+};
+
+// Proxy API requests
+app.all('/api/*', proxyHandler);
+
+// Proxy static assets (images)
+app.all('/assets/*', proxyHandler);
+app.all('/storage/*', proxyHandler);
 
 // Handle preflight
 app.options('*', cors());

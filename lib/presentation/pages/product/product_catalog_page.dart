@@ -239,11 +239,6 @@ class _ProductCard extends StatelessWidget {
           // Bersihkan URL dari karakter yang tidak diinginkan
           imageUrl = imageUrl.replaceAll('\\/', '/');
           
-          // Pastikan URL memiliki protokol
-          if (!imageUrl.startsWith('http')) {
-            imageUrl = 'http://$imageUrl';
-          }
-          
           debugPrint('Processed URL: $imageUrl');
           break;
         }
@@ -269,46 +264,36 @@ class _ProductCard extends StatelessWidget {
         debugPrint('After replacing backslashes: $imageUrl');
       }
       
-      // For Chrome, use wisatalembung.test directly instead of 10.0.2.2
-      if (imageUrl.contains('wisatalembung.test')) {
-        debugPrint('Using wisatalembung.test domain: $imageUrl');
-      }
+      // Parse the URL to extract the path
+      String? finalUrl;
       
-      // Cek URL final
-      debugPrint('\n--- Final URL Check ---');
-      debugPrint('Is absolute URL: ${imageUrl.startsWith(RegExp(r'https?://'))}');
-      debugPrint('URL length: ${imageUrl.length}');
-      debugPrint('Final URL: $imageUrl');
-      
-      // Jika URL sudah lengkap
       if (imageUrl.startsWith(RegExp(r'https?://'))) {
-        debugPrint('Using full URL: $imageUrl');
-        debugPrint('=== IMAGE URL DEBUG END ===\n');
-        return imageUrl;
-      }
-
-      // Handle relative paths - use wisatalembung.test for Chrome
-      final baseUrl = 'http://wisatalembung.test';
-      
-      // Jika URL relatif dengan storage/
-      if (imageUrl.startsWith('storage/') || imageUrl.startsWith('/storage/')) {
-        final url = '$baseUrl/${imageUrl.startsWith('/') ? imageUrl.substring(1) : imageUrl}';
-        debugPrint('Converted storage path to URL: $url');
-        return url;
-      }
-
-      // Jika URL relatif tanpa prefix
-      if (!imageUrl.startsWith('http')) {
-        // Hapus leading slash jika ada
-        if (imageUrl.startsWith('/')) {
-          imageUrl = imageUrl.substring(1);
+        // Extract path from full URL
+        final uri = Uri.parse(imageUrl);
+        final path = uri.path;
+        
+        // Use proxy for web platform
+        finalUrl = 'http://localhost:3001$path';
+        debugPrint('Converted full URL to proxy URL: $finalUrl');
+      } else {
+        // Handle relative paths
+        String path = imageUrl;
+        
+        // Remove leading slash if present
+        if (path.startsWith('/')) {
+          path = path.substring(1);
         }
-        final url = '$baseUrl/storage/$imageUrl';
-        debugPrint('Converted relative path to URL: $url');
-        return url;
+        
+        // Use proxy to access images
+        finalUrl = 'http://localhost:3001/$path';
+        debugPrint('Converted relative path to proxy URL: $finalUrl');
       }
-
-      return imageUrl;
+      
+      debugPrint('\n--- Final URL Check ---');
+      debugPrint('Final URL: $finalUrl');
+      debugPrint('=== IMAGE URL DEBUG END ===\n');
+      
+      return finalUrl;
     } catch (e, stackTrace) {
       debugPrint('Error getting image URL: $e');
       debugPrint('Stack trace: $stackTrace');

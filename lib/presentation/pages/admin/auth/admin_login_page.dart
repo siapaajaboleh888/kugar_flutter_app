@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/router/admin_router.dart';
+import '../../../../core/router/app_router.dart';
+import '../../../../data/providers/admin_auth_provider.dart';
 
 class AdminLoginPage extends ConsumerStatefulWidget {
   const AdminLoginPage({super.key});
@@ -29,28 +30,48 @@ class _AdminLoginPageState extends ConsumerState<AdminLoginPage> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       
-      // Simulasi delay loading
-      await Future.delayed(const Duration(seconds: 1));
-      
-      // Validasi kredensial
-      final email = _emailController.text.trim();
-      final password = _passwordController.text;
-      
-      if (email == 'admin@kugar.com' && password == 'admin123') {
-        if (mounted) {
-          setState(() => _isLoading = false);
-          context.go(AdminRouter.dashboard);
-        }
-      } else {
+      try {
+        final email = _emailController.text.trim();
+        final password = _passwordController.text;
+        
+        final adminAuthService = ref.read(adminAuthServiceProvider);
+        final result = await adminAuthService.adminLogin(email, password);
+        
+        if (!mounted) return;
+        
         setState(() => _isLoading = false);
-        if (mounted) {
+        
+        if (result['success'] == true) {
+          // Login berhasil
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Email atau password salah'),
+            SnackBar(
+              content: Text(result['message'] ?? 'Login berhasil'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          
+          // Navigate to admin dashboard
+          context.go(AppRouter.adminDashboard);
+        } else {
+          // Login gagal
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Login gagal'),
               backgroundColor: Colors.red,
             ),
           );
         }
+      } catch (e) {
+        if (!mounted) return;
+        
+        setState(() => _isLoading = false);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Terjadi kesalahan: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }

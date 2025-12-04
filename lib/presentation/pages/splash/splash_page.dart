@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/router/app_router.dart';
 import '../../providers/auth_provider.dart';
@@ -48,15 +49,33 @@ class _SplashPageState extends ConsumerState<SplashPage>
     
     if (!mounted) return;
 
+    // Check admin auth first
+    final prefs = await SharedPreferences.getInstance();
+    final adminToken = prefs.getString('admin_token');
+    
+    print('=== SPLASH PAGE DEBUG ===');
+    print('Admin token exists: ${adminToken != null}');
+    
+    if (adminToken != null) {
+      print('Admin detected, navigating to admin dashboard');
+      context.go(AppRouter.adminDashboard);
+      return;
+    }
+
+    // Check regular user auth
+    print('Checking regular user auth');
     await ref.read(authProvider.notifier).checkAuthStatus();
 
     if (!mounted) return;
 
     final authState = ref.read(authProvider);
+    print('User authenticated: ${authState.isAuthenticated}');
     
     if (authState.isAuthenticated) {
+      print('Navigating to user home');
       context.go(AppRouter.home);
     } else {
+      print('Navigating to login');
       context.go(AppRouter.login);
     }
   }

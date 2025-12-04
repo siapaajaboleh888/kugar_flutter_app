@@ -15,6 +15,15 @@ import '../../presentation/pages/chat/chat_support_page.dart';
 import '../../presentation/pages/reviews/reviews_page.dart';
 import '../../presentation/pages/splash/splash_page.dart';
 
+// Admin Pages
+import '../../presentation/pages/admin/auth/admin_login_page.dart';
+import '../../presentation/pages/admin/dashboard/admin_dashboard_page.dart';
+import '../../presentation/pages/admin/users/admin_users_page.dart';
+import '../../presentation/pages/admin/products/admin_products_page.dart';
+import '../../presentation/pages/admin/orders/admin_orders_page.dart';
+import '../../presentation/pages/admin/chats/admin_chats_page.dart';
+import 'admin_auth_redirect.dart';
+
 class AppRouter {
   static const String splash = '/splash';
   static const String login = '/login';
@@ -32,9 +41,18 @@ class AppRouter {
   static const String chatSupport = '/chat';
   static const String reviews = '/reviews/:productId';
 
+  // Admin Routes
+  static const String adminLogin = '/admin/login';
+  static const String adminDashboard = '/admin/dashboard';
+  static const String adminUsers = '/admin/users';
+  static const String adminProducts = '/admin/products';
+  static const String adminOrders = '/admin/orders';
+  static const String adminChats = '/admin/chats';
+
   static final GoRouter router = GoRouter(
     initialLocation: splash,
     debugLogDiagnostics: true,
+    redirect: adminAuthRedirect,
     routes: [
       GoRoute(
         path: splash,
@@ -129,6 +147,38 @@ class AppRouter {
           final productId = int.parse(state.pathParameters['productId']!);
           return ReviewsPage(productId: productId);
         },
+      ),
+
+      // Admin Routes
+      GoRoute(
+        path: adminLogin,
+        name: 'adminLogin',
+        builder: (context, state) => const AdminLoginPage(),
+      ),
+      GoRoute(
+        path: adminDashboard,
+        name: 'adminDashboard',
+        builder: (context, state) => const AdminDashboardPage(),
+      ),
+      GoRoute(
+        path: adminUsers,
+        name: 'adminUsers',
+        builder: (context, state) => const AdminUsersPage(),
+      ),
+      GoRoute(
+        path: adminProducts,
+        name: 'adminProducts',
+        builder: (context, state) => const AdminProductsPage(),
+      ),
+      GoRoute(
+        path: adminOrders,
+        name: 'adminOrders',
+        builder: (context, state) => const AdminOrdersPage(),
+      ),
+      GoRoute(
+        path: adminChats,
+        name: 'adminChats',
+        builder: (context, state) => const AdminChatsPage(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

@@ -9,12 +9,14 @@ import 'api_provider.dart';
 
 class AuthState {
   final User? user;
+  final String? token;
   final bool isLoading;
   final bool isAuthenticated;
   final String? error;
 
   const AuthState({
     this.user,
+    this.token,
     this.isLoading = false,
     this.isAuthenticated = false,
     this.error,
@@ -22,12 +24,14 @@ class AuthState {
 
   AuthState copyWith({
     User? user,
+    String? token,
     bool? isLoading,
     bool? isAuthenticated,
     String? error,
   }) {
     return AuthState(
       user: user ?? this.user,
+      token: token ?? this.token,
       isLoading: isLoading ?? this.isLoading,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       error: error ?? this.error,
@@ -89,53 +93,56 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // Handle different response formats
       bool isSuccess = false;
       Map<String, dynamic>? userData;
+      String? token;
       String? errorMessage;
       
-      if (response['success'] == true) {
+      // Check for success in various response formats
+      if (response['success'] == true || response['status'] == 'success') {
         isSuccess = true;
-        final data = response['data'] as Map<String, dynamic>?;
-        if (data != null) {
+        // Try to extract user data and token from different locations
+        if (response['data'] != null) {
+          final data = response['data'] as Map<String, dynamic>;
           userData = data['user'] as Map<String, dynamic>?;
-          print('DEBUG: Extracted user from data[\'user\']: $userData');
+          token = data['token'] as String?;
+          if (userData == null) {
+            userData = data as Map<String, dynamic>?;
+          }
+        } else if (response['user'] != null) {
+          userData = response['user'] as Map<String, dynamic>?;
+          token = response['token'] as String? ?? response['access_token'] as String?;
+        } else if (response['access_token'] != null || response['token'] != null) {
+          isSuccess = true;
+          userData = response as Map<String, dynamic>?;
+          token = response['token'] as String? ?? response['access_token'] as String?;
         }
-      } else if (response['status'] == 'success') {
-        isSuccess = true;
-        userData = (response['data'] ?? response['user']) as Map<String, dynamic>?;
       } else if (response['access_token'] != null || response['token'] != null) {
         isSuccess = true;
-        userData = (response['user'] ?? response) as Map<String, dynamic>?;
-      } else if (response['user'] != null) {
-        // Handle case where user data is directly in response
-        isSuccess = true;
         userData = response['user'] as Map<String, dynamic>?;
-        print('DEBUG: Found user data in response[\'user\']: $userData');
+        token = response['token'] as String? ?? response['access_token'] as String?;
       }
       
       if (!isSuccess) {
         errorMessage = response['message']?.toString() ?? 
                       response['error']?.toString() ?? 
-                      'Login failed';
+                      'Login gagal - periksa kembali email dan password Anda';
       }
+
+      print('DEBUG: Extracted token: $token');
 
       if (isSuccess && userData != null) {
         print('DEBUG: Login successful, user data: $userData');
-        print('DEBUG: User data type: ${userData.runtimeType}');
-        print('DEBUG: User name from data: ${userData['name']}');
         try {
           final user = User.fromJson(userData);
-          print('DEBUG: User object created: ${user.toString()}');
-          print('DEBUG: User.name property: "${user.name}"');
-          print('DEBUG: User.email property: "${user.email}"');
-          print('DEBUG: About to update state...');
           state = state.copyWith(
             user: user,
+            token: token,
             isAuthenticated: true,
             isLoading: false,
           );
-          print('DEBUG: State updated - isAuthenticated: ${state.isAuthenticated}, user.name: "${state.user?.name}"');
+          print('DEBUG: User logged in successfully: ${user.name}');
         } catch (e) {
-          print('DEBUG: Error creating user from JSON: $e');
-          // Create minimal user if JSON parsing fails
+          print('DEBUG: Error parsing user data: $e');
+          // Create fallback user
           final fallbackUser = User(
             id: (userData['id'] as int?) ?? 0,
             name: userData['name'] ?? email.split('@')[0],
@@ -147,14 +154,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
             isAuthenticated: true,
             isLoading: false,
           );
-          print('DEBUG: Fallback user created: ${fallbackUser.email}, name: ${fallbackUser.name}');
         }
       } else if (isSuccess) {
         // Success but no user data - create minimal user
         print('DEBUG: Login successful but no user data, creating minimal user.');
         final user = User(
-          id: (response['id'] as int?) ?? 0,
-          name: response['name'] ?? email.split('@')[0],
+          id: 0,
+          name: email.split('@')[0],
           email: email,
           createdAt: DateTime.now(),
         );
@@ -163,7 +169,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
           isAuthenticated: true,
           isLoading: false,
         );
-        print('DEBUG: Minimal user created: ${user.email}');
       } else {
         print('DEBUG: Login failed: $errorMessage');
         state = state.copyWith(
@@ -175,7 +180,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       print('DEBUG: Login exception: $e');
       state = state.copyWith(
         isLoading: false,
-        error: 'Login error: ${e.toString()}',
+        error: 'Terjadi kesalahan saat login: ${e.toString()}',
       );
     }
   }

@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../../core/router/app_router.dart';
@@ -38,7 +40,62 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final authState = ref.read(authProvider);
     
     if (authState.isAuthenticated && mounted) {
-      context.go(AppRouter.home);
+      // Get token directly from authState instead of SharedPreferences
+      final token = authState.token;
+      
+      // Also get from SharedPreferences for user data
+      final prefs = await SharedPreferences.getInstance();
+      final userDataStr = prefs.getString('user_data');
+      
+      print('=== LOGIN PAGE DEBUG ===');
+      print('User authenticated: ${authState.isAuthenticated}');
+      print('Token from authState: $token');
+      print('Token exists: ${token != null}');
+      print('User data from prefs: $userDataStr');
+      
+      bool isAdmin = false;
+      if (userDataStr != null) {
+        try {
+          final userData = jsonDecode(userDataStr) as Map<String, dynamic>;
+          final role = userData['role'] as String?;
+          print('User role: $role');
+          isAdmin = role == 'admin' || role == 'administrator';
+          print('Is admin: $isAdmin');
+        } catch (e) {
+          print('Error parsing user data: $e');
+        }
+      }
+      
+      print('Final check - isAdmin: $isAdmin, token != null: ${token != null}');
+      
+      if (isAdmin && token != null) {
+        print('Admin detected! Redirecting to admin dashboard');
+        
+        // Copy token to admin storage
+        await prefs.setString('admin_token', token);
+        if (userDataStr != null) {
+          await prefs.setString('admin_data', userDataStr);
+        }
+        
+        print('Admin token and data saved to admin storage');
+        
+        // Clear regular user storage
+        await prefs.remove('token');
+        await prefs.remove('user_data');
+        
+        print('Regular user storage cleared');
+        
+        // Navigate to admin dashboard
+        if (mounted) {
+          print('Navigating to admin dashboard...');
+          context.go(AppRouter.adminDashboard);
+        }
+      } else {
+        print('Regular user, redirecting to home');
+        if (mounted) {
+          context.go(AppRouter.home);
+        }
+      }
     }
   }
 
